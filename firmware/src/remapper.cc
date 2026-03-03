@@ -650,6 +650,8 @@ int main() {
 
     next_print = time_us_64() + 1000000;
 
+    static bool wakeup_sent = false;
+
     while (true) {
         if (read_report()) {
             process_mapping(get_and_clear_tick_pending());
@@ -660,6 +662,12 @@ int main() {
                 process_mapping(true);
             }
             send_report();
+        } else if (tud_suspended() && or_items > 0 && !wakeup_sent) {
+            tud_remote_wakeup();
+            wakeup_sent = true;
+        }
+        if (!tud_suspended()) {
+            wakeup_sent = false;
         }
 
         if (their_descriptor_updated) {

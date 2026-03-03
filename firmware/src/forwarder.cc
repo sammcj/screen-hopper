@@ -9,8 +9,16 @@
 #define FORWARDER_RX_PIN 9
 
 bool led_state = false;
+static bool wakeup_sent = false;
 
 void serial_callback(const uint8_t* data, uint16_t len) {
+    if (tud_suspended()) {
+        if (!wakeup_sent) {
+            tud_remote_wakeup();
+            wakeup_sent = true;
+        }
+        return;
+    }
     tud_hid_report(data[0], data + 1, len - 1);
     board_led_write(led_state);
     led_state = !led_state;
@@ -30,6 +38,9 @@ int main() {
     while (true) {
         serial_read(serial_callback, FORWARDER_UART);
         tud_task();
+        if (!tud_suspended()) {
+            wakeup_sent = false;
+        }
     }
 
     return 0;
