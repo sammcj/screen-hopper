@@ -75,9 +75,10 @@ struct __attribute__((packed)) screen_def_t {
     uint32_t w;
     uint32_t h;
     uint32_t sensitivity;
+    uint8_t  output;       // 0 = USB (this computer), 1 = serial (forwarder)
 };
 
-#define NSCREENS 2
+#define NSCREENS 6
 
 struct __attribute__((packed)) persist_config_t {
     uint8_t version;

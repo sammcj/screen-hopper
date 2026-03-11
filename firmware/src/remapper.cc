@@ -9,6 +9,7 @@
 #include "hardware/gpio.h"
 #include "hardware/uart.h"
 #include "pico/stdio.h"
+#include "pico/stdlib.h"
 
 #include "config.h"
 #include "crc.h"
@@ -88,6 +89,9 @@ uint32_t reports_sent;
 
 int64_t cursor_x = 0;
 int64_t cursor_y = 0;
+
+// Remember last active local screen for caps lock toggling
+int8_t last_local_screen = -1;
 
 int8_t active_screen = 0;
 
@@ -218,9 +222,20 @@ void screens_updated() {
         bounds_max_y = std::max(bounds_max_y, (int64_t) screens[i].y + screens[i].h);
     }
 
-    cursor_x = screens[0].x + screens[0].w / 2;
-    cursor_y = screens[0].y + screens[0].h / 2;
+    // Default to the first local screen (output=0), not the remote
     active_screen = 0;
+    last_local_screen = -1;
+    for (int i = 0; i < NSCREENS; i++) {
+        if (screens.count(i) && screens[i].w > 0 && screens[i].output == 0) {
+            if (last_local_screen == -1) {
+                last_local_screen = i;
+                active_screen = i;
+            }
+            break;
+        }
+    }
+    cursor_x = screens[active_screen].x + screens[active_screen].w / 2;
+    cursor_y = screens[active_screen].y + screens[active_screen].h / 2;
 }
 
 bool differ_on_absolute(const uint8_t* report1, const uint8_t* report2, uint8_t report_id) {
@@ -258,9 +273,11 @@ void aggregate_relative(uint8_t* prev_report, const uint8_t* report, uint8_t rep
     }
 }
 
-bool within_bounds(int64_t x, int64_t y, int8_t& active_screen) {
+bool within_bounds(int64_t x, int64_t y, int8_t& active_screen, int8_t output_filter = -1) {
     active_screen = -1;
     for (uint8_t i = 0; i < NSCREENS; i++) {
+        if (screens[i].w == 0) continue;  // skip unconfigured screens
+        if (output_filter >= 0 && screens[i].output != (uint8_t)output_filter) continue;
         if (screens[i].x <= x &&
             x < screens[i].x + screens[i].w &&
             screens[i].y <= y &&
@@ -277,6 +294,19 @@ bool within_bounds(int64_t x, int64_t y, int8_t& active_screen) {
                 y >= bounds_min_y &&
                 y < bounds_max_y) ||
             (constraint_mode == ConstraintMode::NO_CONSTRAINT));
+}
+
+void queue_relative_movement(int16_t dx, int16_t dy, uint8_t screen_idx) {
+    if (or_items >= OR_BUFSIZE) return;
+    outgoing_reports[or_tail][0] = screen_idx;
+    outgoing_reports[or_tail][1] = REPORT_ID_RELATIVE;
+    memset(outgoing_reports[or_tail] + 2, 0, report_sizes[REPORT_ID_RELATIVE]);
+    outgoing_reports[or_tail][2] = dx & 0xFF;
+    outgoing_reports[or_tail][3] = (dx >> 8) & 0xFF;
+    outgoing_reports[or_tail][4] = dy & 0xFF;
+    outgoing_reports[or_tail][5] = (dy >> 8) & 0xFF;
+    or_tail = (or_tail + 1) % OR_BUFSIZE;
+    or_items++;
 }
 
 void process_mapping(bool auto_repeat) {
@@ -322,7 +352,34 @@ void process_mapping(bool auto_repeat) {
         uint32_t layer = layer_usage >> 32;
         if (layer_state[layer]) {
             if ((prev_input_state[usage] == 0) && (input_state[usage] != 0)) {
-                active_screen = (active_screen + 1) % NSCREENS;
+                // Toggle between local (output=0) and remote (output=1) computers.
+                // Don't cycle through individual local screens - those are
+                // handled by boundary crossing via mouse movement.
+                uint8_t current_output = (screens.count(active_screen) ? screens[active_screen].output : 0);
+                if (current_output == 0) {
+                    // Currently on local -> switch to remote
+                    last_local_screen = active_screen;
+                    // Find first remote screen (output=1)
+                    for (int i = 0; i < NSCREENS; i++) {
+                        if (screens.count(i) && screens[i].w > 0 && screens[i].output == 1) {
+                            active_screen = i;
+                            break;
+                        }
+                    }
+                } else {
+                    // Currently on remote -> switch back to last local screen
+                    if (last_local_screen != -1 && screens.count(last_local_screen) && screens[last_local_screen].w > 0) {
+                        active_screen = last_local_screen;
+                    } else {
+                        // Fallback: find first local screen
+                        for (int i = 0; i < NSCREENS; i++) {
+                            if (screens.count(i) && screens[i].w > 0 && screens[i].output == 0) {
+                                active_screen = i;
+                                break;
+                            }
+                        }
+                    }
+                }
                 cursor_x = screens[active_screen].x + screens[active_screen].w / 2;
                 cursor_y = screens[active_screen].y + screens[active_screen].h / 2;
             }
@@ -392,16 +449,44 @@ void process_mapping(bool auto_repeat) {
     accumulated[MOUSE_Y_USAGE] -= dy;
 
     int8_t new_active_screen;
-    if (within_bounds(new_cursor_x, new_cursor_y, new_active_screen)) {
+    int8_t prev_active_screen = active_screen;
+    // Only allow mouse movement between screens with the same output.
+    // Switching between local/remote is done via caps lock, not mouse movement.
+    int8_t cur_output = (screens.count(active_screen) ? screens[active_screen].output : 0);
+    if (within_bounds(new_cursor_x, new_cursor_y, new_active_screen, cur_output)) {
         cursor_x = new_cursor_x;
         cursor_y = new_cursor_y;
         active_screen = new_active_screen;
-    } else if (within_bounds(cursor_x, new_cursor_y, new_active_screen)) {  // so that the cursor doesn't snag on screen edges
+    } else if (within_bounds(cursor_x, new_cursor_y, new_active_screen, cur_output)) {  // so that the cursor doesn't snag on screen edges
         cursor_y = new_cursor_y;
         active_screen = new_active_screen;
-    } else if (within_bounds(new_cursor_x, cursor_y, new_active_screen)) {
+    } else if (within_bounds(new_cursor_x, cursor_y, new_active_screen, cur_output)) {
         cursor_x = new_cursor_x;
         active_screen = new_active_screen;
+    }
+
+    // Boundary crossing: when moving between screens on the same computer,
+    // send relative movement to push the cursor across the macOS display edge,
+    // then absolute positioning takes over on the new display.
+    static const int16_t CROSSING_DELTA = 100;
+    if (active_screen != -1 && prev_active_screen != -1 &&
+        active_screen != prev_active_screen &&
+        screens.count(active_screen) && screens.count(prev_active_screen) &&
+        screens[active_screen].output == screens[prev_active_screen].output) {
+
+        int16_t rel_dx = 0;
+        int16_t rel_dy = 0;
+        int64_t prev_cx = screens[prev_active_screen].x + screens[prev_active_screen].w / 2;
+        int64_t new_cx = screens[active_screen].x + screens[active_screen].w / 2;
+        int64_t prev_cy = screens[prev_active_screen].y + screens[prev_active_screen].h / 2;
+        int64_t new_cy = screens[active_screen].y + screens[active_screen].h / 2;
+
+        if (new_cx > prev_cx) rel_dx = CROSSING_DELTA;
+        else if (new_cx < prev_cx) rel_dx = -CROSSING_DELTA;
+        if (new_cy > prev_cy) rel_dy = CROSSING_DELTA;
+        else if (new_cy < prev_cy) rel_dy = -CROSSING_DELTA;
+
+        queue_relative_movement(rel_dx, rel_dy, active_screen);
     }
 
     if (active_screen != -1) {
@@ -467,10 +552,12 @@ void send_report() {
         return;
     }
 
-    uint8_t target_screen = outgoing_reports[or_head][0];
+    uint8_t screen_idx = outgoing_reports[or_head][0];
     uint8_t report_id = outgoing_reports[or_head][1];
 
-    if (target_screen == 0) {
+    uint8_t output = (screens.count(screen_idx) && screens[screen_idx].output != 0) ? 1 : 0;
+
+    if (output == 0) {
         tud_hid_report(report_id, outgoing_reports[or_head] + 2, report_sizes[report_id]);
     } else {
         serial_write(outgoing_reports[or_head] + 1, report_sizes[report_id] + 1, FORWARDER_UART);
@@ -594,7 +681,12 @@ void parse_our_descriptor() {
     std::set<uint32_t> our_usages_set;
     for (auto const& [report_id, usage_map] : our_usages) {
         for (auto const& [usage, usage_def] : usage_map) {
-            our_usages_flat[usage] = usage_def;
+            // Don't let the relative mouse report's X/Y overwrite the absolute
+            // mouse's entries in the flat map. The relative report is only used
+            // for boundary crossing and is written to directly.
+            if (report_id != REPORT_ID_RELATIVE) {
+                our_usages_flat[usage] = usage_def;
+            }
             our_usages_set.insert(usage);
 
             if (usage_def.is_relative) {

@@ -24,7 +24,7 @@ There are some consequences to this mode of operation, for example the aspect ra
 
 There are two hardware versions of the Screen Hopper: the dual Pico version and the triple Pico version. They have the same functionality, but the triple Pico version has better device compatibility - some input devices work with either, but some will only work with the triple Pico version.
 
-See [here](HARDWARE.md) for details on how to make both versions of the device.
+See [HARDWARE.md](HARDWARE.md) for details on how to make both versions of the device.
 
 ## How to use the configuration tool
 
@@ -46,13 +46,28 @@ If you can't use the browser-based configuration tool, there's also a [command-l
 
 ## How to compile the firmware
 
-```
+Both Raspberry Pi Pico (RP2040) and Pico 2 (RP2350) are supported.
+
+```shell
 git clone https://github.com/jfedor2/screen-hopper.git
-cd screen-hopper
-git submodule update --init
-cd firmware
-mkdir build
-cd build
-cmake ..
-make
+cd screen-hopper/firmware
+
+# for pico v1:
+make pico1
+
+# for pico v2:
+make pico2
 ```
+
+### Firmware output
+
+After building, the UF2 firmware files are copied to `firmware/pico1/` or `firmware/pico2/`:
+
+| File                 | Version | Purpose                  |
+| -------------------- | ------- | ------------------------ |
+| `screenhopper.uf2`   | Dual    | Main Pico (with PIO-USB) |
+| `forwarder.uf2`      | Dual    | Second Pico              |
+| `screenhopper_a.uf2` | Triple  | Pico A                   |
+| `screenhopper_b.uf2` | Triple  | Pico B (USB host)        |
+
+To flash, hold BOOTSEL while plugging in the Pico, then copy the appropriate UF2 file to the drive that appears.

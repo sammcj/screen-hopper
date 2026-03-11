@@ -24,7 +24,7 @@ SET_SCREEN = 12
 UNMAPPED_PASSTHROUGH_FLAG = 0x01
 STICKY_FLAG = 0x01
 
-NSCREENS = 2
+NSCREENS = 6
 
 
 def check_crc(buf, crc_):
@@ -93,7 +93,7 @@ for mapping in config.get("mappings", []):
 
 for i, screen in enumerate(config.get("screens", [])):
     data = struct.pack(
-        "<BBBBLLLLL5B",
+        "<BBBBLLLLLB4B",
         REPORT_ID_CONFIG,
         CONFIG_VERSION,
         SET_SCREEN,
@@ -103,7 +103,8 @@ for i, screen in enumerate(config.get("screens", [])):
         screen["w"],
         screen["h"],
         screen.get("sensitivity", 1000),
-        *([0] * 5)
+        screen.get("output", 0),
+        *([0] * 4)
     )
     device.send_feature_report(add_crc(data))
 

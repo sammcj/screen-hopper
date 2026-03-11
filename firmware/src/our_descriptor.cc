@@ -73,6 +73,24 @@ const uint8_t our_report_descriptor[] = {
     0xC0,                         //   End Collection
     0xC0,                         // End Collection
 
+    // Relative mouse (for boundary crossing between displays)
+    0x05, 0x01,                    // Usage Page (Generic Desktop Ctrls)
+    0x09, 0x02,                    // Usage (Mouse)
+    0xA1, 0x01,                    // Collection (Application)
+    0x85, REPORT_ID_RELATIVE,      //   Report ID (REPORT_ID_RELATIVE)
+    0x09, 0x01,                    //   Usage (Pointer)
+    0xA1, 0x00,                    //   Collection (Physical)
+    0x05, 0x01,                    //     Usage Page (Generic Desktop Ctrls)
+    0x09, 0x30,                    //     Usage (X)
+    0x09, 0x31,                    //     Usage (Y)
+    0x16, 0x00, 0x80,              //     Logical Minimum (-32768)
+    0x26, 0xFF, 0x7F,              //     Logical Maximum (32767)
+    0x75, 0x10,                    //     Report Size (16)
+    0x95, 0x02,                    //     Report Count (2)
+    0x81, 0x06,                    //     Input (Data,Var,Rel)
+    0xC0,                          //   End Collection
+    0xC0,                          // End Collection
+
     0x05, 0x01,                // Usage Page (Generic Desktop Ctrls)
     0x09, 0x06,                // Usage (Keyboard)
     0xA1, 0x01,                // Collection (Application)

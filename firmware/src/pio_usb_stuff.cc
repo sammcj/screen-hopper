@@ -26,7 +26,9 @@
 
 #include "pio_usb_stuff.h"
 
+#include <pico/stdlib.h>
 #include <pico/multicore.h>
+#include <hardware/clocks.h>
 
 static usb_device_t* usb_device = NULL;
 
