@@ -1,0 +1,144 @@
+{
+    "version": 11,
+    "active_profile": 0,
+    "profiles": [
+        {
+            "_comment": "Profile 0 - remote/external monitor BELOW the laptop (current default). CONFIG_VERSION 11 affine drag gain: drag_gain = base*1000, drag_curve_k = slope*1e4; per-flush gain(v) = base + slope*v (v=|rx|+|ry|), clamped to ~1.3 in firmware, modelling macOS drag accel. Local Mac (output 0) SETTLED at base 260, slope 390. Tuning path: 260/430 over-advanced and the over-advance GREW with drag size (+39px moderate rightward, +164px large up-left) = the SLOPE term overshooting macOS's concave gain at the higher speeds a large drag reaches; base (slow drags) was fine. Cutting slope only: 430->370 over-corrected (backward rebound), 430->390 centres the residual on zero - a drag now lands a hair forward or back depending on its exact speed (macOS uses smoothed velocity; per-flush affine can't track that, so the residual has no fixed sign). 390 is the practical floor for config tuning. Isolate base (slow) from slope (fast) when tuning; the earlier whole-line cuts (250/400, 440/170) failed because they dropped base too. Trust merge.py's H/F ratio, NOT analyze_curve's per-flush gain fit. Remote (output 1) reuses the local estimate, validate separately. Tune live with make apply-config.",
+            "unmapped_passthrough": true,
+            "partial_scroll_timeout": 1000000,
+            "interval_override": 1,
+            "constraint_mode": 2,
+            "offscreen_sensitivity": 2223,
+            "coord_scale": 1795,
+            "edge_resistance": 359195,
+            "jiggle_interval": 60,
+            "screens": [
+                {
+                    "x": 0,
+                    "y": 3879310,
+                    "w": 10000000,
+                    "h": 6464007,
+                    "sensitivity": 4003,
+                    "output": 1,
+                    "scale": 4864,
+                    "drag_gain": 260,
+                    "drag_curve_k": 390
+                },
+                {
+                    "x": 3103448,
+                    "y": 0,
+                    "w": 6896551,
+                    "h": 3879310,
+                    "sensitivity": 2223,
+                    "output": 0,
+                    "scale": 1796,
+                    "drag_gain": 260,
+                    "drag_curve_k": 390
+                },
+                {
+                    "x": 0,
+                    "y": 1081178,
+                    "w": 3103448,
+                    "h": 2006106,
+                    "sensitivity": 2223,
+                    "output": 0,
+                    "scale": 1796,
+                    "drag_gain": 260,
+                    "drag_curve_k": 390
+                }
+            ],
+            "mappings": [
+                {
+                    "source_usage": "0x0007006b",
+                    "target_usage": "0xfff20001",
+                    "layer": 0,
+                    "sticky": false,
+                    "scaling": 1000
+                },
+                {
+                    "source_usage": "0x00070069",
+                    "target_usage": "0xfff30000",
+                    "layer": 0,
+                    "sticky": false,
+                    "scaling": 1000
+                },
+                {
+                    "source_usage": "0x0007006a",
+                    "target_usage": "0xfff30010",
+                    "layer": 0,
+                    "sticky": false,
+                    "scaling": 1000
+                }
+            ]
+        },
+        {
+            "_comment": "Profile 1 - remote on the LEFT of the laptop layout.",
+            "unmapped_passthrough": true,
+            "partial_scroll_timeout": 1000000,
+            "interval_override": 1,
+            "constraint_mode": 2,
+            "offscreen_sensitivity": 2223,
+            "coord_scale": 1795,
+            "edge_resistance": 359195,
+            "jiggle_interval": 60,
+            "screens": [
+                {
+                    "x": 0,
+                    "y": 0,
+                    "w": 6206896,
+                    "h": 3879310,
+                    "sensitivity": 4003,
+                    "output": 1,
+                    "scale": 3233,
+                    "drag_gain": 260,
+                    "drag_curve_k": 390
+                },
+                {
+                    "x": 9310344,
+                    "y": 0,
+                    "w": 6896551,
+                    "h": 3879310,
+                    "sensitivity": 2224,
+                    "output": 0,
+                    "scale": 1796,
+                    "drag_gain": 260,
+                    "drag_curve_k": 390
+                },
+                {
+                    "x": 6206896,
+                    "y": 1081178,
+                    "w": 3103448,
+                    "h": 2006106,
+                    "sensitivity": 2224,
+                    "output": 0,
+                    "scale": 1796,
+                    "drag_gain": 260,
+                    "drag_curve_k": 390
+                }
+            ],
+            "mappings": [
+                {
+                    "source_usage": "0x0007006b",
+                    "target_usage": "0xfff20001",
+                    "layer": 0,
+                    "sticky": false,
+                    "scaling": 1000
+                },
+                {
+                    "source_usage": "0x00070069",
+                    "target_usage": "0xfff30000",
+                    "layer": 0,
+                    "sticky": false,
+                    "scaling": 1000
+                },
+                {
+                    "source_usage": "0x0007006a",
+                    "target_usage": "0xfff30010",
+                    "layer": 0,
+                    "sticky": false,
+                    "scaling": 1000
+                }
+            ]
+        }
+    ]
+}

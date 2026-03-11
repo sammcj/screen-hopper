@@ -10,4 +10,6 @@ bool read_report();
 void interval_override_updated();
 void screens_updated();
 
+void handle_type_text_chunk(const uint8_t* data, uint8_t len, bool reset, bool go);
+
 #endif

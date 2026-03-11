@@ -29,3 +29,11 @@ std::unordered_map<int8_t, screen_def_t> screens = {
 };
 
 ConstraintMode constraint_mode = ConstraintMode::VISIBLE;
+
+int64_t coord_scale = 0;  // internal units per pixel; 0 disables drag-relative motion
+
+uint32_t edge_resistance = 0;  // internal units of push to cross to the other computer; 0 = instant
+
+uint16_t jiggle_interval = 0;  // seconds between jiggles of the inactive machine; 0 = disabled
+
+bool jiggle_enabled = true;

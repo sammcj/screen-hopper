@@ -4,6 +4,11 @@ add_compile_definitions(PICO_DEFAULT_UART_BAUD_RATE=921600)
 
 set(PICO_COPY_TO_RAM 1)
 
+# Board selection: pass -DPICO_BOARD=pico2 for Raspberry Pi Pico 2
+if(NOT PICO_BOARD)
+    set(PICO_BOARD "pico" CACHE STRING "Target board (pico or pico2)")
+endif()
+
 set(PICO_SDK_PATH "${CMAKE_CURRENT_LIST_DIR}/pico-sdk")
 set(PICO_TINYUSB_PATH "${CMAKE_CURRENT_LIST_DIR}/tinyusb")
 set(OUR_PIO_USB_PATH "${CMAKE_CURRENT_LIST_DIR}/src/pio_usb")
@@ -32,7 +37,8 @@ pico_add_extra_outputs(screenhopper)
 
 add_executable(forwarder src/forwarder.cc src/our_descriptor.cc src/tinyusb_stuff.cc src/serial.cc src/crc.cc)
 target_include_directories(forwarder PRIVATE src src/tusb_config_device)
-target_link_libraries(forwarder pico_stdlib tinyusb_device tinyusb_board)
+target_compile_definitions(forwarder PRIVATE IS_FORWARDER=1)
+target_link_libraries(forwarder pico_stdlib hardware_watchdog tinyusb_device tinyusb_board)
 pico_add_extra_outputs(forwarder)
 
 add_executable(screenhopper_a src/remapper.cc src/remapper_dual_a.cc src/crc.cc src/descriptor_parser.cc src/tinyusb_stuff.cc src/our_descriptor.cc src/globals.cc src/config.cc src/quirks.cc src/interval_override.cc src/serial.cc)
@@ -44,3 +50,21 @@ add_executable(screenhopper_b src/remapper_dual_b.cc src/crc.cc src/interval_ove
 target_include_directories(screenhopper_b PRIVATE src src/tusb_config_host)
 target_link_libraries(screenhopper_b pico_stdlib tinyusb_host tinyusb_board)
 pico_add_extra_outputs(screenhopper_b)
+
+# Copy UF2 files to firmware/pico1/ or firmware/pico2/ after build
+if(PICO_BOARD STREQUAL "pico2")
+    set(UF2_OUTPUT_DIR "${CMAKE_CURRENT_LIST_DIR}/pico2")
+else()
+    set(UF2_OUTPUT_DIR "${CMAKE_CURRENT_LIST_DIR}/pico1")
+endif()
+
+set(ALL_TARGETS screenhopper forwarder screenhopper_a screenhopper_b)
+foreach(target ${ALL_TARGETS})
+    add_custom_command(TARGET ${target} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${UF2_OUTPUT_DIR}"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${CMAKE_CURRENT_BINARY_DIR}/${target}.uf2"
+            "${UF2_OUTPUT_DIR}/${target}.uf2"
+        COMMENT "Copying ${target}.uf2 to ${UF2_OUTPUT_DIR}/"
+    )
+endforeach()

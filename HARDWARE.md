@@ -2,7 +2,9 @@
 
 There are two hardware versions of the Screen Hopper: the dual Pico version and the triple Pico version. They have the same functionality, but the triple Pico version has better device compatibility - some input devices work with either, but some will only work with the triple Pico version.
 
-The reason for multiple Picos is that we need three USB interfaces and the RP2040 chip only has one. In the dual Pico version one of the interfaces is "bit-banged" (implemented in software) using the awesome [Pico-PIO-USB](https://github.com/sekigon-gonnoc/Pico-PIO-USB) library by [sekigon-gonnoc](https://github.com/sekigon-gonnoc).
+Both the Raspberry Pi Pico (RP2040) and Raspberry Pi Pico 2 (RP2350) are supported. The pinout and wiring are identical between the two boards. You can mix Pico and Pico 2 boards freely, but each board must be flashed with firmware built for its chip. See the [README](README.md) for build instructions.
+
+The reason for multiple Picos is that we need three USB interfaces and the RP2040/RP2350 chip only has one. In the dual Pico version one of the interfaces is "bit-banged" (implemented in software) using the awesome [Pico-PIO-USB](https://github.com/sekigon-gonnoc/Pico-PIO-USB) library by [sekigon-gonnoc](https://github.com/sekigon-gonnoc).
 
 The Picos talk to one another over serial.
 
@@ -12,7 +14,7 @@ To flash the Picos with the appropriate firmware (see below), hold the BOOTSEL b
 
 This version is made using:
 
-* two Raspberry Pi Picos
+* two Raspberry Pi Picos (or Pico 2s)
 * 6N137 optocoupler
 * USB Type A female breakout board (or you could use a USB extender cable cut in half)
 * 470 ohm resistor (or similar)
@@ -24,29 +26,29 @@ This version is made using:
 The pin connections are as follows.
 
 | `screenhopper.uf2` Pico | USB port breakout |
-| --- | --- |
-| VBUS | VCC |
-| GND | GND |
-| GPIO0 | D+ |
-| GPIO1 | D- |
+| ----------------------- | ----------------- |
+| VBUS                    | VCC               |
+| GND                     | GND               |
+| GPIO0                   | D+                |
+| GPIO1                   | D-                |
 
-| `screenhopper.uf2` Pico | 6N137 optocoupler | |
-| --- | --- | --- |
-| 3V3 | A | through 470 ohm resistor |
-| GPIO20 | C | |
+| `screenhopper.uf2` Pico | 6N137 optocoupler |                          |
+| ----------------------- | ----------------- | ------------------------ |
+| 3V3                     | A                 | through 470 ohm resistor |
+| GPIO20                  | C                 |                          |
 
-| `forwarder.uf2` Pico | 6N137 optocoupler | |
-| --- | --- | --- |
-| VBUS | VCC | |
-| GND | GND | |
-| 3V3 | VO | through 680 ohm resistor |
-| GPIO9 | VO | |
+| `forwarder.uf2` Pico | 6N137 optocoupler |                          |
+| -------------------- | ----------------- | ------------------------ |
+| VBUS                 | VCC               |                          |
+| GND                  | GND               |                          |
+| 3V3                  | VO                | through 680 ohm resistor |
+| GPIO9                | VO                |                          |
 
 ## Triple Pico version
 
 This is the version that's compatible with most devices. It's made using:
 
-* three Raspberry Pi Picos
+* three Raspberry Pi Picos (or Pico 2s)
 * 6N137 optocoupler
 * a USB OTG cable or adapter
 * 470 ohm resistor (or similar)
@@ -58,22 +60,22 @@ Connect your mouse/keyboard to the Pico running `screenhopper_b.uf2` via an OTG 
 ![Triple Pico version breadboard diagram](images/breadboard-triple.png)
 
 | `screenhopper_a.uf2` Pico | `screenhopper_b.uf2` Pico |
-| --- | --- |
-| VBUS | VBUS |
-| GND | GND |
-| GPIO0 | GPIO1 |
-| GPIO1 | GPIO0 |
-| GPIO2 | GPIO3 |
-| GPIO3 | GPIO2 |
+| ------------------------- | ------------------------- |
+| VBUS                      | VBUS                      |
+| GND                       | GND                       |
+| GPIO0                     | GPIO1                     |
+| GPIO1                     | GPIO0                     |
+| GPIO2                     | GPIO3                     |
+| GPIO3                     | GPIO2                     |
 
-| `screenhopper_a.uf2` Pico | 6N137 optocoupler | |
-| --- | --- | --- |
-| 3V3 | A | through 470 ohm resistor |
-| GPIO20 | C | |
+| `screenhopper_a.uf2` Pico | 6N137 optocoupler |                          |
+| ------------------------- | ----------------- | ------------------------ |
+| 3V3                       | A                 | through 470 ohm resistor |
+| GPIO20                    | C                 |                          |
 
-| `forwarder.uf2` Pico | 6N137 optocoupler | |
-| --- | --- | --- |
-| VBUS | VCC | |
-| GND | GND | |
-| 3V3 | VO | through 680 ohm resistor |
-| GPIO9 | VO | |
+| `forwarder.uf2` Pico | 6N137 optocoupler |                          |
+| -------------------- | ----------------- | ------------------------ |
+| VBUS                 | VCC               |                          |
+| GND                  | GND               |                          |
+| 3V3                  | VO                | through 680 ohm resistor |
+| GPIO9                | VO                |                          |

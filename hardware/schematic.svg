@@ -1,0 +1,127 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1060 620" font-family="Menlo,Consolas,monospace" font-size="13">
+  <style>
+    .box{fill:#fff;stroke:#222;stroke-width:1.5}
+    .lbl{fill:#111;font-weight:bold}
+    .pin{fill:#333;font-size:11px}
+    .net{fill:#1a5fb4;font-size:11px}
+    .wire{stroke:#555;stroke-width:1.4;fill:none}
+    .pwr{stroke:#a51d2d;stroke-width:1.6;fill:none}
+    .d1{fill:#eaf2fb}
+    .d2{fill:#eafbf0}
+    .title{font-size:16px;font-weight:bold;fill:#111}
+    .note{font-size:11px;fill:#555}
+  </style>
+
+  <rect class="d1" x="10" y="40" width="585" height="560" rx="6"/>
+  <rect class="d2" x="605" y="40" width="445" height="560" rx="6"/>
+  <text class="title" x="20" y="28">Screen Hopper - triple Pico 2 wiring (galvanically isolated KVM)</text>
+  <text class="note" x="20" y="56">DOMAIN 1 - powered by computer 1 (shared VBUS1 / GND1)</text>
+  <text class="note" x="615" y="56">DOMAIN 2 - powered by computer 2 (VBUS2 / GND2)</text>
+
+  <line x1="600" y1="40" x2="600" y2="600" stroke="#c01c28" stroke-width="2" stroke-dasharray="8 5"/>
+  <text x="600" y="380" class="lbl" fill="#c01c28" text-anchor="middle" transform="rotate(-90 600 380)">GALVANIC ISOLATION (optocoupler)</text>
+
+  <!-- Pico B (host) -->
+  <rect class="box" x="60" y="90" width="170" height="180"/>
+  <text class="lbl" x="145" y="82" text-anchor="middle">Pico B (A2)</text>
+  <text class="note" x="145" y="287" text-anchor="middle">USB host - mouse/keyboard</text>
+  <text class="pin" x="222" y="116" text-anchor="end">GPIO1</text>
+  <text class="pin" x="222" y="136" text-anchor="end">GPIO0</text>
+  <text class="pin" x="222" y="156" text-anchor="end">GPIO3</text>
+  <text class="pin" x="222" y="176" text-anchor="end">GPIO2</text>
+  <text class="pin" x="222" y="212" text-anchor="end">TP2 USB_DM</text>
+  <text class="pin" x="222" y="232" text-anchor="end">TP3 USB_DP</text>
+  <text class="pin" x="68" y="232">GND</text>
+  <text class="pin" x="68" y="212">VBUS</text>
+
+  <!-- Pico A (computer 1) -->
+  <rect class="box" x="360" y="90" width="170" height="180"/>
+  <text class="lbl" x="445" y="82" text-anchor="middle">Pico A (A1)</text>
+  <text class="note" x="445" y="287" text-anchor="middle">USB device - computer 1</text>
+  <text class="pin" x="368" y="116">GPIO0</text>
+  <text class="pin" x="368" y="136">GPIO1</text>
+  <text class="pin" x="368" y="156">GPIO2</text>
+  <text class="pin" x="368" y="176">GPIO3</text>
+  <text class="pin" x="522" y="136" text-anchor="end">3V3</text>
+  <text class="pin" x="522" y="176" text-anchor="end">GPIO20</text>
+  <text class="pin" x="522" y="216" text-anchor="end">VBUS</text>
+  <text class="pin" x="522" y="236" text-anchor="end">GND</text>
+
+  <!-- USB-A receptacle -->
+  <rect class="box" x="60" y="370" width="170" height="120"/>
+  <text class="lbl" x="145" y="362" text-anchor="middle">USB-A host (J1)</text>
+  <text class="pin" x="222" y="398" text-anchor="end">VBUS (1)</text>
+  <text class="pin" x="222" y="418" text-anchor="end">D- (2)</text>
+  <text class="pin" x="222" y="438" text-anchor="end">D+ (3)</text>
+  <text class="pin" x="222" y="458" text-anchor="end">GND (4)</text>
+
+  <!-- R1 -->
+  <rect class="box" x="400" y="330" width="86" height="26"/>
+  <text class="lbl" x="443" y="348" text-anchor="middle">R1 470</text>
+
+  <!-- optocoupler U1 -->
+  <rect class="box" x="540" y="120" width="120" height="160"/>
+  <text class="lbl" x="600" y="112" text-anchor="middle">Optocoupler (U1)</text>
+  <text class="pin" x="548" y="156">2 An</text>
+  <text class="pin" x="548" y="200">3 Cath</text>
+  <text class="pin" x="652" y="156" text-anchor="end">VCC 8</text>
+  <text class="pin" x="652" y="200" text-anchor="end">VO 6</text>
+  <text class="pin" x="652" y="244" text-anchor="end">GND 5</text>
+  <text class="pin" x="600" y="272" text-anchor="middle" font-size="10">7 VE = NC</text>
+
+  <!-- C1 bypass, vertical, next to opto output -->
+  <rect class="box" x="690" y="156" width="22" height="88"/>
+  <text class="lbl" x="724" y="204">C1 100nF</text>
+
+  <!-- R2 -->
+  <rect class="box" x="780" y="330" width="86" height="26"/>
+  <text class="lbl" x="823" y="348" text-anchor="middle">R2 680</text>
+
+  <!-- Forwarder -->
+  <rect class="box" x="880" y="90" width="170" height="180"/>
+  <text class="lbl" x="965" y="82" text-anchor="middle">Pico Fwd (A3)</text>
+  <text class="note" x="965" y="287" text-anchor="middle">USB device - computer 2</text>
+  <text class="pin" x="888" y="156">GPIO9</text>
+  <text class="pin" x="888" y="200">3V3</text>
+  <text class="pin" x="888" y="216">VBUS</text>
+  <text class="pin" x="888" y="236">GND</text>
+
+  <!-- serial A<->B (crossed UART0) -->
+  <path class="wire" d="M360 113 H300 V113 H230"/>
+  <path class="wire" d="M360 133 H290 V133 H230"/>
+  <path class="wire" d="M360 153 H280 V153 H230"/>
+  <path class="wire" d="M360 173 H270 V173 H230"/>
+  <text class="net" x="252" y="103">UART0 TX/RX/CTS/RTS (crossed)</text>
+
+  <!-- USB D-/D+ : Pico B TP -> J1 -->
+  <path class="wire" d="M230 212 H320 V418 H230"/>
+  <path class="wire" d="M230 232 H300 V438 H230"/>
+  <text class="net" x="250" y="318">USB_DM / USB_DP</text>
+
+  <!-- VBUS1 / GND1 shared rail -->
+  <path class="pwr" d="M230 252 H340 V520 H560 V280"/>
+  <text class="net" x="345" y="514">VBUS1 / GND1 (A + B + USB-A)</text>
+
+  <!-- opto TX: A.3V3 -> R1 -> U1.2(anode) ; A.GPIO20 -> U1.3(cathode) -->
+  <path class="pwr" d="M530 136 H560 V343 H486"/>
+  <path class="wire" d="M400 343 H380 V156 H540"/>
+  <text class="net" x="384" y="150">3V3 - R1 - anode</text>
+  <path class="wire" d="M530 176 H575 V200 H540"/>
+  <text class="net" x="536" y="172">GPIO20 - cathode</text>
+
+  <!-- domain 2: VBUS2 = A3.VBUS -> U1.VCC8 -->
+  <path class="pwr" d="M880 216 H770 V156 H660"/>
+  <text class="net" x="676" y="148">VBUS2 - VCC(8)</text>
+  <!-- GND2 = A3.GND -> U1.GND5 -->
+  <path class="pwr" d="M880 236 H800 V244 H660"/>
+  <text class="net" x="676" y="262">GND2 - GND(5)</text>
+  <!-- OPTO_VO: U1.VO6 + A3.GPIO9 + R2 ; 3V3 -> R2 -> VO -->
+  <path class="wire" d="M880 156 H740 V200 H660"/>
+  <text class="net" x="676" y="192">GPIO9 - VO(6)</text>
+  <path class="wire" d="M880 200 H823 V330"/>
+  <path class="wire" d="M780 343 H740 V200"/>
+  <text class="net" x="828" y="320">3V3 - R2</text>
+  <!-- C1 bypass stubs to VCC8 and GND5 lines -->
+  <path class="wire" d="M701 156 V156"/>
+  <path class="wire" d="M701 244 H720 V244"/>
+</svg>

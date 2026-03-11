@@ -6,10 +6,14 @@
 #define CONFIG_SIZE 32
 #define RESOLUTION_MULTIPLIER 120
 
+#define REPORT_ID_MOUSE 1
+#define REPORT_ID_KEYBOARD 2
+#define REPORT_ID_CONSUMER 3
+#define REPORT_ID_RELATIVE 4
 #define REPORT_ID_MULTIPLIER 99
 #define REPORT_ID_CONFIG 100
 
-#define MAX_INPUT_REPORT_ID 3
+#define MAX_INPUT_REPORT_ID 4
 
 extern const uint8_t our_report_descriptor[];
 extern const uint32_t our_report_descriptor_length;

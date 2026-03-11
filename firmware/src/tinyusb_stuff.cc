@@ -66,8 +66,13 @@ uint8_t const desc_configuration[] = {
 
 char const* string_desc_arr[] = {
     (const char[]){ 0x09, 0x04 },  // 0: is supported language is English (0x0409)
+#ifdef IS_FORWARDER
+    "Generic",                     // 1: Manufacturer
+    "USB Keyboard/Mouse",          // 2: Product
+#else
     "RP2040",                      // 1: Manufacturer
     "Screen Hopper",               // 2: Product
+#endif
 };
 
 // Invoked when received GET DEVICE DESCRIPTOR

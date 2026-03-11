@@ -1,9 +1,5 @@
 #include "our_descriptor.h"
 
-const uint8_t REPORT_ID_MOUSE = 1;
-const uint8_t REPORT_ID_KEYBOARD = 2;
-const uint8_t REPORT_ID_CONSUMER = 3;
-
 const uint8_t our_report_descriptor[] = {
     0x05, 0x01,                   // Usage Page (Generic Desktop Ctrls)
     0x09, 0x02,                   // Usage (Mouse)
@@ -70,6 +66,42 @@ const uint8_t our_report_descriptor[] = {
     0x81, 0x06,                   //         Input (Data,Var,Rel,No Wrap,Linear,Preferred State,No Null Position)
     0xC0,                         //       End Collection
     0xC0,                         //     End Collection
+    0xC0,                         //   End Collection
+    // Relative pointer in the SAME mouse device (separate report ID). macOS
+    // warps the cursor for absolute reports and won't synthesise drag events,
+    // so while a button is held we move via this relative report instead. It
+    // carries the button state and stays in the same Application collection as
+    // the absolute report, so macOS sees one pointer (a separate top-level
+    // mouse collection makes macOS misbind clicks).
+    0x09, 0x01,                   //   Usage (Pointer)
+    0xA1, 0x00,                   //   Collection (Physical)
+    0x85, REPORT_ID_RELATIVE,     //     Report ID (REPORT_ID_RELATIVE)
+    0x05, 0x09,                   //     Usage Page (Button)
+    0x19, 0x01,                   //     Usage Minimum (0x01)
+    0x29, 0x08,                   //     Usage Maximum (0x08)
+    0x15, 0x00,                   //     Logical Minimum (0)
+    0x25, 0x01,                   //     Logical Maximum (1)
+    0x75, 0x01,                   //     Report Size (1)
+    0x95, 0x08,                   //     Report Count (8)
+    0x81, 0x02,                   //     Input (Data,Var,Abs)
+    0x05, 0x01,                   //     Usage Page (Generic Desktop Ctrls)
+    0x09, 0x30,                   //     Usage (X)
+    0x09, 0x31,                   //     Usage (Y)
+    0x16, 0x00, 0x80,             //     Logical Minimum (-32768)
+    0x26, 0xFF, 0x7F,             //     Logical Maximum (32767)
+    0x75, 0x10,                   //     Report Size (16)
+    0x95, 0x02,                   //     Report Count (2)
+    0x81, 0x06,                   //     Input (Data,Var,Rel)
+    // Wheel + AC Pan so scrolling works while a button is held (during a drag
+    // the absolute report is suppressed, so scroll has to ride this report).
+    // Mirrors the absolute report's scroll fields; keep the byte layout in sync
+    // with queue_relative_movement.
+    0x09, 0x38,                   //     Usage (Wheel)
+    0x95, 0x01,                   //     Report Count (1)
+    0x81, 0x06,                   //     Input (Data,Var,Rel)
+    0x05, 0x0C,                   //     Usage Page (Consumer)
+    0x0A, 0x38, 0x02,             //     Usage (AC Pan)
+    0x81, 0x06,                   //     Input (Data,Var,Rel)
     0xC0,                         //   End Collection
     0xC0,                         // End Collection
 

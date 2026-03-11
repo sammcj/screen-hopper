@@ -34,4 +34,16 @@ extern std::unordered_map<int8_t, screen_def_t> screens;
 
 extern ConstraintMode constraint_mode;
 
+extern int64_t coord_scale;
+
+extern uint32_t edge_resistance;
+
+extern uint16_t jiggle_interval;
+
+// Runtime gate on top of jiggle_interval, toggled at runtime by a bound
+// TOGGLE_JIGGLE_USAGE hotkey. False suppresses the jiggler even if
+// jiggle_interval > 0; the persisted/baked interval value is untouched, so the
+// gate is purely live state and resets to true on every boot.
+extern bool jiggle_enabled;
+
 #endif

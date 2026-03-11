@@ -1,0 +1,8 @@
+Designator*,Quantity*,Manufacturer Part Number*,Manufacturer,Package/Footprint,Description,Procurement Type,Customer Note
+A2,1,SC1631,Raspberry Pi,RaspberryPi_Pico_Common_THT,Raspberry Pi Pico 2 (RP2350) - USB host for mouse/keyboard,DNP,"DO NOT POPULATE. User-fitted Pico 2 on the BACK of the board, hole grid offset 8.89mm from A1. The mouse/keyboard plugs into this Pico's own micro-USB (OTG adapter)."
+A1,1,SC1631,Raspberry Pi,RaspberryPi_Pico_Common_THT,Raspberry Pi Pico 2 (RP2350) - USB device to computer 1,DNP,"DO NOT POPULATE. User plugs a Pico 2 module into a 0.1"" pin-header here. Top row, front."
+A3,1,SC1631,Raspberry Pi,RaspberryPi_Pico_Common_THT,Raspberry Pi Pico 2 (RP2350) - forwarder to computer 2,DNP,"DO NOT POPULATE. User-fitted Pico 2, bottom row. Isolated domain 2."
+C1,1,0805B104K500CT,Walsin,0805,Capacitor 100nF X7R 50V (opto VCC decoupling),,Non-critical decoupling; any 100nF 0805 X7R OK.
+R1,1,WR08X4700FTL,Walsin,0805,Resistor 470R 1% (opto LED current limit),,HQ# RE0195837. Walsin WR08X4700FTL. Any 470R 0805 acceptable if the matcher prefers another.
+R2,1,WR08X6800FTL,Walsin,0805,Resistor 680R 1% (opto VO pull-up),,Walsin WR08X6800FTL. Any 680R 0805 acceptable if the matcher prefers another.
+U1,1,HCPL-0601-500E,Broadcom,SOIC-8,"High-speed 10 Mbit optocoupler, SO-8 (galvanic isolation)",,HQ# IS0009935. True SO-8 part. The 6N137 is NOT available in SO-8 (DIP-8 or wide gull-wing only) - do NOT substitute it. HCPL-0611 is a pin-compatible higher-CMR alternative in this same SO-8 footprint.

@@ -147,6 +147,12 @@ const usages = {
     "0xfff10002": { 'name': 'Layer 2', 'class': 'other' },
     "0xfff10003": { 'name': 'Layer 3', 'class': 'other' },
     "0xfff20001": { 'name': 'Switch screen', 'class': 'other' },
+    "0xfff30000": { 'name': 'Cycle profile', 'class': 'other' },
+    "0xfff30001": { 'name': 'Activate profile 1', 'class': 'other' },
+    "0xfff30002": { 'name': 'Activate profile 2', 'class': 'other' },
+    "0xfff30003": { 'name': 'Activate profile 3', 'class': 'other' },
+    "0xfff30004": { 'name': 'Activate profile 4', 'class': 'other' },
+    "0xfff30010": { 'name': 'Toggle jiggler', 'class': 'other' },
 };
 
 export default usages;

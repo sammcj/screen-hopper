@@ -1,0 +1,49 @@
+{
+    "version": 7,
+    "unmapped_passthrough": true,
+    "partial_scroll_timeout": 1000000,
+    "interval_override": 1,
+    "constraint_mode": 2,
+    "offscreen_sensitivity": 2223,
+    "coord_scale": 1795,
+    "edge_resistance": 359195,
+    "jiggle_interval": 60,
+    "screens": [
+        {
+            "x": 0,
+            "y": 0,
+            "w": 6206896,
+            "h": 3879310,
+            "sensitivity": 4003,
+            "output": 1,
+            "scale": 3233
+        },
+        {
+            "x": 9310344,
+            "y": 0,
+            "w": 6896551,
+            "h": 3879310,
+            "sensitivity": 2224,
+            "output": 0,
+            "scale": 1796
+        },
+        {
+            "x": 6206896,
+            "y": 1081178,
+            "w": 3103448,
+            "h": 2006106,
+            "sensitivity": 2224,
+            "output": 0,
+            "scale": 1796
+        }
+    ],
+    "mappings": [
+        {
+            "source_usage": "0x0007006b",
+            "target_usage": "0xfff20001",
+            "layer": 0,
+            "sticky": false,
+            "scaling": 1000
+        }
+    ]
+}

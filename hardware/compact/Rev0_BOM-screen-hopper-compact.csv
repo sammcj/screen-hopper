@@ -1,0 +1,13 @@
+Designator*,Quantity*,Manufacturer Part Number*,Manufacturer,Package/Footprint,Description,Procurement Type,Customer Note
+A2,1,SC1631,Raspberry Pi,RaspberryPi_Pico_SMD,Raspberry Pi Pico 2 (RP2350) - USB host for mouse/keyboard,,"As A1. Mounts on the BACK of the PCB, directly under A1."
+A1,1,SC1631,Raspberry Pi,RaspberryPi_Pico_SMD,Raspberry Pi Pico 2 (RP2350) - USB device to computer 1,,"Raspberry Pi Pico 2 MODULE (SC1631), NOT a bare RP2350 chip. May not be in the HQ/Rev0 catalogue and cannot be consigned - if unmatched it is left unpopulated."
+A3,1,SC1631,Raspberry Pi,RaspberryPi_Pico_SMD,Raspberry Pi Pico 2 (RP2350) - forwarder to computer 2,,As A1. Isolated domain 2.
+C1,1,CC0805KRX7R9BB104,Yageo,0805,Capacitor 100nF X7R 50V (opto VCC decoupling),,Non-critical decoupling; any 100nF 0805 X7R OK.
+J1,1,292303-7,TE Connectivity,USB-A horizontal edge-mount,USB Type-A receptacle (alternative host input),DNP,DO NOT POPULATE. Footprint exists on the board but J2 (USB-C) is the fitted connector.
+J2,1,TYPE-C-31-M-12,HRO,USB-C 2.0 16-pin SMD,USB Type-C receptacle (mouse/keyboard host input),,POPULATE this connector. Shares data lines with J1 - only one is fitted.
+R1,1,RC0805JR-07470RL,Yageo,0805,Resistor 470R 5% (opto LED current limit),,
+R2,1,RC0805FR-07680RL,Yageo,0805,Resistor 680R 1% (opto VO pull-up),,Any 680R 0805 acceptable.
+R3,1,AC0805FR-0756KL,Yageo,0805,Resistor 56k 1% (USB-C CC1 pull-up Rp),,Value non-critical (+/-20% per USB spec); any 56k 0805 OK.
+R4,1,AC0805FR-0756KL,Yageo,0805,Resistor 56k 1% (USB-C CC2 pull-up Rp),,Value non-critical (+/-20% per USB spec); any 56k 0805 OK.
+U1,1,HCPL-0601,Broadcom,SOIC-8,"High-speed 10 Mbit optocoupler, SO-8 (galvanic isolation)",,True SO-8 part. The 6N137 is NOT available in SO-8 (DIP-8 or wide gull-wing only) - do NOT substitute it. HCPL-0611 is a pin-compatible higher-CMR alternative in this same SO-8 footprint.
+U2,1,USBLC6-2SC6,STMicroelectronics,SOT-23-6,USB 2.0 ESD/TVS diode array (host port D+/D- protection),,

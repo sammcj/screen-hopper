@@ -1,0 +1,14 @@
+firmware/build*/
+firmware/src/baked_config.h
+.vscode/
+.DS_Store
+*.log
+*.tmp
+*.out
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+*.zip
