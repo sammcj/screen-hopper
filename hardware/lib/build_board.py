@@ -48,8 +48,11 @@ def variant_config(variant):
             "opto": ("Package_SO", "SOIC-8_3.9x4.9mm_P1.27mm"),
             "res": ("Resistor_SMD", "R_0805_2012Metric"),
             "cap": ("Capacitor_SMD", "C_0805_2012Metric"),
-            "usb": ("Connector_USB", "USB_A_Connfly_DS1095"),
+            # Horizontal edge-mount USB-A: matches the USB-C's edge layout and
+            # (unlike the upright DS1095) ships a KiCad 3D model for the preview.
+            "usb": ("Connector_USB", "USB_A_TE_292303-7_Horizontal"),
             "usbc": ("Connector_USB", "USB_C_Receptacle_HRO_TYPE-C-31-M-12"),
+            "esd": ("Package_TO_SOT_SMD", "SOT-23-6"),  # USBLC6-2SC6 USB ESD array
         }
     return {
         "pico_af": ("Module", "RaspberryPi_Pico_Common_THT"),
@@ -88,13 +91,17 @@ class Builder:
         nc.SetViaDrill(mm(via_h))
         self.clearance = clr
 
-    # KiCad 10 ships no .step for some footprints, so their 3D preview is empty.
-    # Substitute a visually-close model that does ship - cosmetic only; the pads,
+    # KiCad 10 ships no .step for our exact connector footprints, so their 3D
+    # preview is empty. Substitute a visually-close model that does ship, with a
+    # rotation/offset to orient it for THIS footprint. Cosmetic only - the pads,
     # courtyard, silkscreen and all fab outputs still come from the real footprint.
+    # value: (model file, extra Z rotation deg, (dx, dy, dz) offset mm)
+    M3D = "${KICAD10_3DMODEL_DIR}/Connector_USB.3dshapes"
     MODEL_SUBST = {
-        "USB_C_Receptacle_HRO_TYPE-C-31-M-12":
-            "${KICAD10_3DMODEL_DIR}/Connector_USB.3dshapes/"
-            "USB_C_Receptacle_GCT_USB4105-xx-A_16P_TopMnt_Horizontal.step",
+        # GCT USB-C model faces into the board on the HRO footprint; flip 180.
+        "USB_C_Receptacle_HRO_TYPE-C-31-M-12": (
+            f"{M3D}/USB_C_Receptacle_GCT_USB4105-xx-A_16P_TopMnt_Horizontal.step",
+            180.0, (0.0, 0.0, 0.0)),
     }
 
     def load(self, ref, lib, name, x, y, rot=0, value=None, bottom=False):
@@ -105,7 +112,11 @@ class Builder:
         fp.SetReference(ref)
         sub = self.MODEL_SUBST.get(name)
         if sub and len(fp.Models()):
-            fp.Models()[0].m_Filename = sub
+            fname, rz, off = sub
+            m = fp.Models()[0]
+            m.m_Filename = fname
+            m.m_Rotation = pcbnew.VECTOR3D(0.0, 0.0, rz)
+            m.m_Offset = pcbnew.VECTOR3D(*off)
         if value:
             fp.SetValue(value)
         fp.SetPosition(vec(0, 0))
@@ -170,16 +181,25 @@ class Builder:
                     "U1": (59, 26, 0), "A3": (77, 30, 0),
                     "R1": (54, 22, 0), "R2": (64, 22, 0), "C1": (63, 40, 0),
                     "R3": (26, 40, 0), "R4": (26, 44, 0),
-                    "J1": (15, 16, 90), "J2": (15, 41, 90)},
+                    # U2 = USB ESD array, placed close to the connectors (the ESD
+                    # entry point) so its clamp path is short. Domain 1.
+                    "U2": (24, 28, 0),
+                    # Both host connectors face the left board edge (mouth = -X),
+                    # verified via pad-centroid-vs-courtyard, NOT the cosmetic 3D
+                    # model. They have different depths, so they're placed by X to
+                    # land both mouths at the same edge: USB-A (deep) at x=15, the
+                    # shallower USB-C at x=8 so its mouth lines up with the USB-A's.
+                    "J1": (15, 16, 270), "J2": (8, 41, 270)},
     }
     # Refs mounted on the back copper layer (compact variant only).
     BOTTOM = {"compact": {"A2"}}
     PARTS = {"A2": "pico_b", "A1": "pico_af", "A3": "pico_af", "U1": "opto",
              "R1": "res", "R2": "res", "C1": "cap", "J1": "usb",
-             "R3": "res", "R4": "res", "J2": "usbc"}
+             "R3": "res", "R4": "res", "J2": "usbc", "U2": "esd"}
     VALUES = {"A2": "RP2350_PicoB", "A1": "RP2350_PicoA", "A3": "RP2350_Fwd",
               "U1": "6N137", "R1": "470R", "R2": "680R", "C1": "100nF",
-              "J1": "USB_A_Host", "R3": "56k", "R4": "56k", "J2": "USB_C_Host"}
+              "J1": "USB_A_Host", "R3": "56k", "R4": "56k", "J2": "USB_C_Host",
+              "U2": "USBLC6-2SC6"}
 
     def place(self):
         # Pico B (host) rotated 180 so its serial pins (1-5) face Pico A and its
@@ -233,6 +253,14 @@ class Builder:
             self.connect("CC2", ("J2", "B5"), ("R4", 1))
             self.connect("VBUS1", ("R3", 2), ("R4", 2))
             # SBU1/SBU2 (A8/B8) unused.
+        # ESD protection (U2 = USBLC6-2SC6) shunt-clamps the host data lines to
+        # VBUS1/GND1. Both I/O1 pins (1,6) tap USB_DP, both I/O2 pins (3,4) tap
+        # USB_DM; pin5 VBUS, pin2 GND. Domain 1 only - no effect on isolation.
+        if "U2" in self.comps:
+            self.connect("USB_DP", ("U2", 1), ("U2", 6))
+            self.connect("USB_DM", ("U2", 3), ("U2", 4))
+            self.connect("VBUS1", ("U2", 5))
+            self.connect("GND1", ("U2", 2))
 
     # ---- board outline ----
     def outline(self):
@@ -241,8 +269,12 @@ class Builder:
         # autorouter has room to finish around the bigger through-hole parts.
         tight = self.variant in ("smd", "compact")
         margin = 2.5 if tight else 4.0
-        xs_l, xs_r, ys_t, ys_b = [], [], [], []
-        for fp in self.comps.values():
+        # compact host connectors (J1/J2) are horizontal edge-mount with mouths
+        # facing -X; the left board edge sits flush with their mouths (0 margin)
+        # so a cable can plug in, while every other edge keeps the full margin.
+        flush_left = self.variant == "compact"
+        left_cands, xs_r, ys_t, ys_b = [], [], [], []
+        for ref, fp in self.comps.items():
             # back-mounted parts (compact A2) carry their courtyard on B_CrtYd
             cy = fp.GetCourtyard(pcbnew.F_CrtYd)
             if not cy.OutlineCount():
@@ -251,11 +283,12 @@ class Builder:
                 bb = cy.BBox()
             else:
                 bb = fp.GetBoundingBox()
-            xs_l.append(pcbnew.ToMM(bb.GetLeft()))
+            m = 0.0 if (flush_left and ref in ("J1", "J2")) else margin
+            left_cands.append(pcbnew.ToMM(bb.GetLeft()) - m)
             xs_r.append(pcbnew.ToMM(bb.GetRight()))
             ys_t.append(pcbnew.ToMM(bb.GetTop()))
             ys_b.append(pcbnew.ToMM(bb.GetBottom()))
-        l = min(xs_l) - margin
+        l = min(left_cands)
         t = min(ys_t) - margin
         r = max(xs_r) + margin
         bt = max(ys_b) + margin

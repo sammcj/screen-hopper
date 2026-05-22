@@ -8,7 +8,7 @@ Three variants are provided from the same netlist:
 | ------- | ------ | ---- | -------- |
 | Compact SMD | [`smd/`](smd/) | 92 x 82 mm | Optocoupler + passives reflowed by the fab; you mount the three Picos flat, single-sided |
 | Through-hole | [`tht/`](tht/) | 112 x 106 mm | You solder everything; Picos A and Forwarder on headers |
-| Double-sided | [`compact/`](compact/) | 83 x 59 mm | Smallest. Pico B reflows on the back under Pico A; adds a USB-C host port |
+| Double-sided | [`compact/`](compact/) | 89 x 59 mm | Smallest by area. Pico B reflows on the back under Pico A; adds a USB-C host port |
 
 ![SMD board top view](smd/preview-top.png)
 
@@ -33,7 +33,7 @@ For an **SMD board assembled** by the fab, also supply:
 - `BOM-smd.csv` or `BOM-compact.csv` - bill of materials
 - the matching `-positions.csv` - centroid / pick-and-place file
 
-The fab can place the optocoupler (SOIC-8), the 0805 resistors and the 0805 capacitor (and, on `compact`, the SMD USB-C receptacle and the two CC resistors). The three Pico 2 modules are not standard catalogue parts, so either hand-solder them onto the castellated pads yourself or consign them to the fab. The USB-A receptacle is through-hole and is usually hand-soldered. The `compact` board places parts on **both sides** - tell the fab it is a double-sided assembly (Pico B is the only part on the back).
+The fab can place the optocoupler (SOIC-8), the 0805 resistors and the 0805 capacitor (and, on `compact`, the SMD USB-C receptacle, the two CC resistors and the SOT-23-6 ESD array). The three Pico 2 modules are not standard catalogue parts, so either hand-solder them onto the castellated pads yourself or consign them to the fab. On `smd`/`tht` the USB-A receptacle is a through-hole vertical part, hand-soldered. On `compact` the USB-A is a horizontal edge-mount part with SMD contacts the fab can place plus two through-hole shield posts you solder by hand for mechanical strength. The `compact` board places parts on **both sides** - tell the fab it is a double-sided assembly (Pico B is the only part on the back).
 
 ## Bill of materials
 
@@ -47,16 +47,17 @@ See [`BOM-smd.csv`](BOM-smd.csv), [`BOM-tht.csv`](BOM-tht.csv) and [`BOM-compact
 | R2 | 680 R (opto VO pull-up) | 0805 | axial 1/4 W | 0805 |
 | R3, R4 | 56 k (USB-C CC pull-ups) | - | - | 0805 (compact only) |
 | C1 | 100 nF (opto bypass) | 0805 | ceramic disc | 0805 |
-| J1 | USB-A receptacle (host) | through-hole | through-hole | through-hole |
-| J2 | USB-C receptacle (host) | - | - | SMD (compact only) |
+| J1 | USB-A receptacle (host) | through-hole (vertical) | through-hole (vertical) | horizontal edge-mount (SMD + posts) |
+| J2 | USB-C receptacle (host) | - | - | SMD 16-pin (compact only) |
+| U2 | USBLC6-2SC6 USB ESD array | - | - | SOT-23-6 (compact only) |
 
 Suggested MPNs in the CSVs are starting points - confirm against your supplier's stock.
 
 ### Host connector (compact variant)
 
-The `compact` board carries **both** a USB-A (`J1`) and a USB-C (`J2`) host receptacle wired to the same D+/D- lines on Pico B's native USB. **Populate and use only one** - they share the data lines, so fitting both and plugging a device into each shorts two devices together. The USB-C port is wired as a host (downstream-facing): `R3`/`R4` (56 k) pull CC1/CC2 up to VBUS to advertise default USB power to whatever plugs in. Leave `R3`/`R4` and `J2` unpopulated if you only want USB-A, or leave `J1` off if you only want USB-C.
+The `compact` board carries **both** a USB-A (`J1`) and a USB-C (`J2`) host receptacle, both horizontal edge-mount parts whose openings face the left board edge, wired to the same D+/D- lines on Pico B's native USB. **Populate and use only one** - they share the data lines, so fitting both and plugging a device into each shorts two devices together. The USB-C port is wired as a host (downstream-facing): `R3`/`R4` (56 k) pull CC1/CC2 up to VBUS to advertise default USB power to whatever plugs in. Leave `R3`/`R4` and `J2` unpopulated if you only want USB-A, or leave `J1` off if you only want USB-C.
 
-KiCad 10 ships no 3D model for the USB-A (Connfly) or the exact USB-C (HRO) footprints, so the **3D viewer shows their pads but no connector body** - cosmetic only, the gerbers and pick-and-place use the real footprints. `J2`'s 3D model is remapped to a near-identical 16-pin USB-C (`USB_C_Receptacle_GCT_USB4105...`) so it previews; no equivalent ships for the vertical USB-A, so `J1` stays bodyless.
+Both connectors are commonly-stocked cheap parts: the USB-C is the HRO TYPE-C-31-M-12 (LCSC C165948, a JLCPCB basic part), and the USB-A is a standard horizontal Type-A edge-mount (TE 292303-7 footprint; any equivalent fits the same pads). KiCad 10 ships no 3D model for the exact HRO USB-C footprint, so `J2`'s model is remapped in `build_board.py` to a near-identical 16-pin USB-C (`USB_C_Receptacle_GCT_USB4105...`) purely so the 3D viewer shows a body - the pads, gerbers and pick-and-place still come from the real HRO footprint.
 
 ## Schematic
 
@@ -79,11 +80,17 @@ Authoritative net list:
 | GND1 | A.GND, B.GND, J1.GND + shield, B.TP1 |
 | Opto TX | A.3V3 - R1(470) - U1.2 (anode); U1.3 (cathode) - A.GPIO20 |
 | USB host | J1.D- - B.TP2 (USB_DM); J1.D+ - B.TP3 (USB_DP) |
+| ESD (compact) | U2.I/O1 (pins 1,6) - USB_DP; U2.I/O2 (pins 3,4) - USB_DM; U2.VBUS (5) - VBUS1; U2.GND (2) - GND1 |
 | VBUS2 | Fwd.VBUS - U1.8 (VCC) - C1 |
 | GND2 | Fwd.GND - U1.5 (GND) - C1 |
 | Opto RX | Fwd.3V3 - R2(680) - U1.6 (VO); Fwd.GPIO9 - U1.6 (VO) |
 
-`C1` (100 nF) bypasses the optocoupler's VCC (pin 8) to GND (pin 5) - recommended by the 6N137 datasheet. Optocoupler pin 7 (VE, enable) is left unconnected, matching the working breadboard build.
+`C1` (100 nF) bypasses the optocoupler's VCC (pin 8) to GND (pin 5) - recommended by the 6N137 datasheet. Optocoupler pin 7 (VE, enable) is left unconnected, matching the working breadboard build (the 6N137's internal pull-down on VE leaves it enabled).
+
+Two deliberate choices, both inherited from the proven breadboard build:
+
+- **`R1` = 470 Ω** sets the opto LED drive to roughly 3.8 mA from the 3.3 V rail. That is slightly below the 6N137's typical 5 mA recommended forward current, but it switches reliably at 1 Mbaud on the breadboard and stays well clear of the LED's 20 mA limit. If you want more margin you can drop to ~330 Ω (about 5.7 mA); leave it at 470 Ω to match the validated design.
+- **ESD protection** (`U2`, compact variant only): a USBLC6-2SC6 low-capacitance TVS array sits next to the host connectors and clamps the D+/D- lines to VBUS1/GND1, shunting a static-discharge spike to ground before it reaches Pico B's USB transceiver. It's invisible during normal operation and adds negligible capacitance at full-speed HID rates. It's in domain 1 only and has no effect on the galvanic isolation. The `smd`/`tht` boards omit it (matching the original build); add equivalent protection there yourself if you want it.
 
 ## Unplaced board (for external auto-placers)
 
@@ -128,7 +135,7 @@ Pipeline: `build_board.py` places the parts and defines the netlist with `pcbnew
 `kicad-cli pcb drc` crashes on this macOS/KiCad 10.0.3 build (a tool bug, reproducible on an empty board), so verification runs through [`lib/check_board.py`](lib/check_board.py), which uses KiCad's own geometry engine to confirm, on every variant:
 
 - **0 unconnected** nets (every pad reaches its net)
-- **0 copper-clearance violations** - no different-net copper closer than the variant's rule (0.18 mm for `smd`/`tht` where the autorouter targets 0.2 mm; 0.15 mm for `compact`)
+- **0 copper-clearance violations** - no different-net copper closer than each variant's design-rule clearance less a 0.02 mm rounding margin (so 0.18 mm for `smd`/`tht` whose rule is 0.2 mm; 0.13 mm for `compact` whose rule is 0.15 mm)
 - **0 copper in the isolation gap** (domains bridged only by the optocoupler)
 
 As a final belt-and-braces step before ordering, open the `.kicad_pcb` in KiCad and run **Inspect > Design Rules Checker** once, and eyeball the board against the wiring table above.

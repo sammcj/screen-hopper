@@ -8,5 +8,6 @@ R2,1,680R,R_0805_2012Metric,Resistor 680 ohm 1/8W 1% (opto VO pull-up),generic 0
 R3,1,56k,R_0805_2012Metric,Resistor 56k ohm 1% (USB-C CC1 pull-up Rp),generic 0805 56k,JLCPCB SMT,Domain 1; advertises host default USB power
 R4,1,56k,R_0805_2012Metric,Resistor 56k ohm 1% (USB-C CC2 pull-up Rp),generic 0805 56k,JLCPCB SMT,Domain 1; advertises host default USB power
 C1,1,100nF,C_0805_2012Metric,Capacitor 100nF X7R 16V+ (opto VCC bypass),generic 0805 100nF X7R,JLCPCB SMT,Domain 2; across opto pins 8-5
-J1,1,USB_A_Host,USB_A_Connfly_DS1095,USB Type-A receptacle (mouse/keyboard input),Connfly DS1095-WNPxxx,hand-solder,Through-hole; alternative to J2 - populate only ONE
-J2,1,USB_C_Host,USB_C_Receptacle_HRO_TYPE-C-31-M-12,USB Type-C receptacle (mouse/keyboard input),HRO TYPE-C-31-M-12,JLCPCB SMT,SMD; alternative to J1 - populate only ONE
+J1,1,USB_A_Host,USB_A_TE_292303-7_Horizontal,USB Type-A horizontal edge-mount receptacle (mouse/keyboard input),TE 292303-7 or std horizontal Type-A on same pads (LCSC: TE 292303-1 = C86461 - confirm footprint before assembly),JLCPCB SMT (2 THT shield posts by hand),SMD contacts + 2 THT shield posts; alternative to J2 - populate only ONE
+J2,1,USB_C_Host,USB_C_Receptacle_HRO_TYPE-C-31-M-12,USB Type-C 2.0 16-pin receptacle (mouse/keyboard input),HRO TYPE-C-31-M-12 (LCSC C165948),JLCPCB SMT,JLCPCB basic part; alternative to J1 - populate only ONE
+U2,1,USBLC6-2SC6,SOT-23-6,USB 2.0 ESD / TVS diode array protecting the host port D+/D-,USBLC6-2SC6 (LCSC C7519),JLCPCB SMT,Domain 1; low-capacitance USB-rated clamp near the connectors

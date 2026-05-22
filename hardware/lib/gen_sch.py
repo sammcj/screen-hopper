@@ -46,6 +46,10 @@ def components(variant):
         comp["R3"] = ("Device:R", "Device", "R", "56k")
         comp["R4"] = ("Device:R", "Device", "R", "56k")
         comp["J2"] = USBC
+        # USB ESD array. USBLC6-2SC6 extends USBLC6-2P6, so use the base symbol's
+        # body/pins (like the 6N137 extends HCPL-261A) and rename to the variant.
+        comp["U2"] = ("Power_Protection:USBLC6-2SC6", "Power_Protection",
+                      "USBLC6-2P6", "USBLC6-2SC6")
     return comp
 
 FOOTPRINTS = {
@@ -63,8 +67,10 @@ FOOTPRINTS = {
                 "A3": "Module:RaspberryPi_Pico_SMD", "U1": "Package_SO:SOIC-8_3.9x4.9mm_P1.27mm",
                 "R1": "Resistor_SMD:R_0805_2012Metric", "R2": "Resistor_SMD:R_0805_2012Metric",
                 "R3": "Resistor_SMD:R_0805_2012Metric", "R4": "Resistor_SMD:R_0805_2012Metric",
-                "C1": "Capacitor_SMD:C_0805_2012Metric", "J1": "Connector_USB:USB_A_Connfly_DS1095",
-                "J2": "Connector_USB:USB_C_Receptacle_HRO_TYPE-C-31-M-12"},
+                "C1": "Capacitor_SMD:C_0805_2012Metric",
+                "J1": "Connector_USB:USB_A_TE_292303-7_Horizontal",
+                "J2": "Connector_USB:USB_C_Receptacle_HRO_TYPE-C-31-M-12",
+                "U2": "Package_TO_SOT_SMD:SOT-23-6"},
 }
 
 # placement centre (mm) on the sheet, all at angle 0. Connectivity comes from the
@@ -72,7 +78,8 @@ FOOTPRINTS = {
 # only need to keep symbols from overlapping. J2/R3/R4 are compact-only.
 PLACE = {"A2": (90, 160), "A1": (190, 160), "A3": (290, 160),
          "U1": (185, 70), "R1": (130, 70), "R2": (240, 60), "C1": (290, 70),
-         "J1": (90, 250), "J2": (90, 340), "R3": (30, 300), "R4": (30, 340)}
+         "J1": (90, 250), "J2": (90, 340), "R3": (30, 300), "R4": (30, 340),
+         "U2": (190, 320)}
 
 GND = ["3", "8", "13", "18", "23", "28", "33", "38"]
 
@@ -102,10 +109,11 @@ def nets(variant):
     # (R3/R4) advertise default USB power on CC1/CC2. One connector at a time.
     d = dict(base)
     d["VBUS1"] += [("J2", "A4"), ("J2", "B4"), ("J2", "A9"), ("J2", "B9"),
-                   ("R3", "2"), ("R4", "2")]
-    d["GND1"] += [("J2", "A1"), ("J2", "B1"), ("J2", "A12"), ("J2", "B12"), ("J2", "SH")]
-    d["USB_DP"] += [("J2", "A6"), ("J2", "B6")]
-    d["USB_DM"] += [("J2", "A7"), ("J2", "B7")]
+                   ("R3", "2"), ("R4", "2"), ("U2", "5")]
+    d["GND1"] += [("J2", "A1"), ("J2", "B1"), ("J2", "A12"), ("J2", "B12"),
+                  ("J2", "SH"), ("U2", "2")]
+    d["USB_DP"] += [("J2", "A6"), ("J2", "B6"), ("U2", "1"), ("U2", "6")]
+    d["USB_DM"] += [("J2", "A7"), ("J2", "B7"), ("U2", "3"), ("U2", "4")]
     return list(d.items()) + [
         ("CC1", [("J2", "A5"), ("R3", "1")]),
         ("CC2", [("J2", "B5"), ("R4", "1")]),
