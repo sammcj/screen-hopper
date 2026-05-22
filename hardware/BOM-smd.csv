@@ -1,0 +1,9 @@
+Reference,Qty,Value,Package,Description,Suggested MPN,Assembly,Notes
+A1,1,RP2350_PicoA,RaspberryPi_Pico_SMD,Raspberry Pi Pico 2 (USB device to computer 1),Raspberry Pi SC1631,hand-solder / consign,Castellated edge-mount flat to board
+A2,1,RP2350_PicoB,RaspberryPi_Pico_SMD,Raspberry Pi Pico 2 (USB host for mouse/keyboard),Raspberry Pi SC1631,hand-solder / consign,Must be non-W with castellations; USB test points TP1-3 used
+A3,1,RP2350_Fwd,RaspberryPi_Pico_SMD,Raspberry Pi Pico 2 (forwarder to computer 2),Raspberry Pi SC1631,hand-solder / consign,Isolated domain 2
+U1,1,6N137,SOIC-8,High-speed optocoupler 10 Mbit (galvanic isolation),6N137S / 6N137SR2M,PCBWay SMT,SOIC-8 surface-mount package
+R1,1,470,R_0805_2012Metric,Resistor 470 ohm 1/8W 1% (opto LED current limit),generic 0805 470R,PCBWay SMT,Domain 1
+R2,1,680,R_0805_2012Metric,Resistor 680 ohm 1/8W 1% (opto VO pull-up),generic 0805 680R,PCBWay SMT,Domain 2
+C1,1,100nF,C_0805_2012Metric,Capacitor 100nF X7R 16V+ (opto VCC bypass),generic 0805 100nF X7R,PCBWay SMT,Domain 2; across opto pins 8-5
+J1,1,USB_A_Host,USB_A_Connfly_DS1095,USB Type-A receptacle (mouse/keyboard input),Connfly DS1095-WNPxxx,hand-solder,Through-hole; wired to Pico B native USB

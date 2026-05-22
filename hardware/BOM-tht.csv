@@ -1,0 +1,11 @@
+Reference,Qty,Value,Package,Description,Suggested MPN,Assembly,Notes
+A1,1,RP2350_PicoA,RaspberryPi_Pico_Common_THT,Raspberry Pi Pico 2 (USB device to computer 1),Raspberry Pi SC1631,you solder,On 2x20 female headers or soldered direct
+A2,1,RP2350_PicoB,RaspberryPi_Pico_SMD,Raspberry Pi Pico 2 (USB host for mouse/keyboard),Raspberry Pi SC1631,you solder,Flat SMD-mount required for USB test points TP1-3
+A3,1,RP2350_Fwd,RaspberryPi_Pico_Common_THT,Raspberry Pi Pico 2 (forwarder to computer 2),Raspberry Pi SC1631,you solder,Isolated domain 2
+U1,1,6N137,DIP-8,High-speed optocoupler 10 Mbit (galvanic isolation),6N137,you solder,Use an 8-pin DIP socket (recommended)
+XU1,1,DIP-8 socket,DIP-8 socket,8-pin DIP IC socket for U1 (optional),generic DIP-8 socket,you solder,Lets you swap the optocoupler
+R1,1,470,R_Axial_DIN0207,Resistor 470 ohm 1/4W axial (opto LED current limit),generic 470R 1/4W,you solder,Domain 1
+R2,1,680,R_Axial_DIN0207,Resistor 680 ohm 1/4W axial (opto VO pull-up),generic 680R 1/4W,you solder,Domain 2
+C1,1,100nF,C_Disc_5mm,Capacitor 100nF ceramic disc 5mm pitch (opto VCC bypass),generic 100nF disc,you solder,Domain 2; across opto pins 8-5
+J1,1,USB_A_Host,USB_A_Connfly_DS1095,USB Type-A receptacle (mouse/keyboard input),Connfly DS1095-WNPxxx,you solder,Through-hole; wired to Pico B native USB
+H1-H4,4,Header 2x20,2.54mm female header,Female headers for Pico A and Forwarder (optional),generic 1x20 2.54mm,you solder,Two per socketed Pico if you want them removable

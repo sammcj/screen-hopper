@@ -1,0 +1,12 @@
+Reference,Qty,Value,Package,Description,Suggested MPN,Assembly,Notes
+A1,1,RP2350_PicoA,RaspberryPi_Pico_SMD,Raspberry Pi Pico 2 (USB device to computer 1),Raspberry Pi SC1631,hand-solder / consign,Castellated edge-mount flat to TOP of board
+A2,1,RP2350_PicoB,RaspberryPi_Pico_SMD,Raspberry Pi Pico 2 (USB host for mouse/keyboard),Raspberry Pi SC1631,hand-solder / consign,Mounts on BACK directly under A1; USB test points TP1-3 used
+A3,1,RP2350_Fwd,RaspberryPi_Pico_SMD,Raspberry Pi Pico 2 (forwarder to computer 2),Raspberry Pi SC1631,hand-solder / consign,Isolated domain 2
+U1,1,6N137,SOIC-8,High-speed optocoupler 10 Mbit (galvanic isolation),6N137S / 6N137SR2M,JLCPCB SMT,SOIC-8 surface-mount package
+R1,1,470R,R_0805_2012Metric,Resistor 470 ohm 1/8W 1% (opto LED current limit),generic 0805 470R,JLCPCB SMT,Domain 1
+R2,1,680R,R_0805_2012Metric,Resistor 680 ohm 1/8W 1% (opto VO pull-up),generic 0805 680R,JLCPCB SMT,Domain 2
+R3,1,56k,R_0805_2012Metric,Resistor 56k ohm 1% (USB-C CC1 pull-up Rp),generic 0805 56k,JLCPCB SMT,Domain 1; advertises host default USB power
+R4,1,56k,R_0805_2012Metric,Resistor 56k ohm 1% (USB-C CC2 pull-up Rp),generic 0805 56k,JLCPCB SMT,Domain 1; advertises host default USB power
+C1,1,100nF,C_0805_2012Metric,Capacitor 100nF X7R 16V+ (opto VCC bypass),generic 0805 100nF X7R,JLCPCB SMT,Domain 2; across opto pins 8-5
+J1,1,USB_A_Host,USB_A_Connfly_DS1095,USB Type-A receptacle (mouse/keyboard input),Connfly DS1095-WNPxxx,hand-solder,Through-hole; alternative to J2 - populate only ONE
+J2,1,USB_C_Host,USB_C_Receptacle_HRO_TYPE-C-31-M-12,USB Type-C receptacle (mouse/keyboard input),HRO TYPE-C-31-M-12,JLCPCB SMT,SMD; alternative to J1 - populate only ONE
