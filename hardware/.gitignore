@@ -11,4 +11,15 @@ fp-info-cache
 sym-lib-table
 fp-lib-table
 
+# fabrication-toolkit / KiCad plugin output - superseded by the lib/ + kicad-cli
+# pipeline (build_board.py, gen_sch.py, gen_rev0_fab.py). Not used to build or
+# order boards; safe to delete and regenerate from the plugin if ever needed.
+fabrication-toolkit-options.json
+database/
+*.kicad_pcb.zip
+*.xml
+production/
+gerber_to_order/
+nextpcb/
+
 .DS_Store

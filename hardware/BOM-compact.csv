@@ -1,13 +1,13 @@
 Reference,Qty,Value,Package,Description,Suggested MPN,Assembly,Notes
-A1,1,RP2350_PicoA,RaspberryPi_Pico_SMD,Raspberry Pi Pico 2 (USB device to computer 1),Raspberry Pi SC1631,hand-solder / consign,Castellated edge-mount flat to TOP of board
-A2,1,RP2350_PicoB,RaspberryPi_Pico_SMD,Raspberry Pi Pico 2 (USB host for mouse/keyboard),Raspberry Pi SC1631,hand-solder / consign,Mounts on BACK directly under A1; USB test points TP1-3 used
-A3,1,RP2350_Fwd,RaspberryPi_Pico_SMD,Raspberry Pi Pico 2 (forwarder to computer 2),Raspberry Pi SC1631,hand-solder / consign,Isolated domain 2
-U1,1,6N137,SOIC-8,High-speed optocoupler 10 Mbit (galvanic isolation),6N137S / 6N137SR2M,JLCPCB SMT,SOIC-8 surface-mount package
-R1,1,470R,R_0805_2012Metric,Resistor 470 ohm 1/8W 1% (opto LED current limit),generic 0805 470R,JLCPCB SMT,Domain 1
-R2,1,680R,R_0805_2012Metric,Resistor 680 ohm 1/8W 1% (opto VO pull-up),generic 0805 680R,JLCPCB SMT,Domain 2
-R3,1,56k,R_0805_2012Metric,Resistor 56k ohm 1% (USB-C CC1 pull-up Rp),generic 0805 56k,JLCPCB SMT,Domain 1; advertises host default USB power
-R4,1,56k,R_0805_2012Metric,Resistor 56k ohm 1% (USB-C CC2 pull-up Rp),generic 0805 56k,JLCPCB SMT,Domain 1; advertises host default USB power
-C1,1,100nF,C_0805_2012Metric,Capacitor 100nF X7R 16V+ (opto VCC bypass),generic 0805 100nF X7R,JLCPCB SMT,Domain 2; across opto pins 8-5
-J1,1,USB_A_Host,USB_A_TE_292303-7_Horizontal,USB Type-A horizontal edge-mount receptacle (mouse/keyboard input),TE 292303-7 or std horizontal Type-A on same pads (LCSC: TE 292303-1 = C86461 - confirm footprint before assembly),JLCPCB SMT (2 THT shield posts by hand),SMD contacts + 2 THT shield posts; alternative to J2 - populate only ONE
-J2,1,USB_C_Host,USB_C_Receptacle_HRO_TYPE-C-31-M-12,USB Type-C 2.0 16-pin receptacle (mouse/keyboard input),HRO TYPE-C-31-M-12 (LCSC C165948),JLCPCB SMT,JLCPCB basic part; alternative to J1 - populate only ONE
-U2,1,USBLC6-2SC6,SOT-23-6,USB 2.0 ESD / TVS diode array protecting the host port D+/D-,USBLC6-2SC6 (LCSC C7519),JLCPCB SMT,Domain 1; low-capacitance USB-rated clamp near the connectors
+A1,1,RP2350_PicoA,RaspberryPi_Pico_SMD,Raspberry Pi Pico 2 (USB device to computer 1),Raspberry Pi Pico 2 MODULE (Pi SC1631) - NOT the bare RP2350 chip,consign - NextPCB does not stock the Pico 2 module,Castellated flat to TOP of board. Do NOT let the matcher substitute a bare RP2350A/B QFN chip - it will not fit this module footprint. Turnkey needs a bare-RP2350 redesign (open decision).
+A2,1,RP2350_PicoB,RaspberryPi_Pico_SMD,Raspberry Pi Pico 2 (USB host for mouse/keyboard),Raspberry Pi Pico 2 MODULE (Pi SC1631) - NOT the bare RP2350 chip,consign - NextPCB does not stock the Pico 2 module,Mounts on BACK directly under A1; USB test points TP1-3 used. Same chip-substitution caveat as A1.
+A3,1,RP2350_Fwd,RaspberryPi_Pico_SMD,Raspberry Pi Pico 2 (forwarder to computer 2),Raspberry Pi Pico 2 MODULE (Pi SC1631) - NOT the bare RP2350 chip,consign - NextPCB does not stock the Pico 2 module,Isolated domain 2. Same chip-substitution caveat as A1.
+U1,1,6N137,SOIC-8,High-speed optocoupler 10 Mbit (galvanic isolation),6N137SM (onsemi; SOP8 = SOIC-8; NextPCB in stock ~597),NextPCB SMT,SOIC-8 SMD only - do NOT substitute the DIP-8 6N137 (won't fit). 6N137SDVM is an in-stock alternative.
+R1,1,470R,R_0805_2012Metric,Resistor 470 ohm 1/8W (opto LED current limit),RC0805JR-07470RL (Yageo 0805 5%; NextPCB in stock),NextPCB SMT,Domain 1
+R2,1,680R,R_0805_2012Metric,Resistor 680 ohm 1/8W (opto VO pull-up),RC0805FR-07680RL (Yageo 0805 1%; NextPCB in stock),NextPCB SMT,Domain 2 - replaces the 7-18 day KOA RK73B2ATTD681J
+R3,1,56k,R_0805_2012Metric,Resistor 56k 0805 (USB-C CC1 pull-up Rp),AC0805FR-0756KL (Yageo 0805 1%; NextPCB in stock),NextPCB SMT,Domain 1; CC pull-up Rp - value non-critical (+/-20% per USB spec); any 56k 0805 OK
+R4,1,56k,R_0805_2012Metric,Resistor 56k 0805 (USB-C CC2 pull-up Rp),AC0805FR-0756KL (Yageo 0805 1%; NextPCB in stock),NextPCB SMT,Domain 1; CC pull-up Rp - value non-critical (+/-20% per USB spec); any 56k 0805 OK
+C1,1,100nF,C_0805_2012Metric,Capacitor 100nF X7R 16V+ (opto VCC bypass),100nF 0805 X7R 16V+ (any; let NextPCB basic library pick),NextPCB SMT,Domain 2; across opto pins 8-5; non-critical decoupling
+J1,1,USB_A_Host,USB_A_TE_292303-7_Horizontal,USB Type-A horizontal edge-mount receptacle (mouse/keyboard input),TE 292303-7 (NextPCB in stock; pricey ~$6) or std horizontal Type-A on same pads,NextPCB SMT (2 THT shield posts - selective/hand solder),SMD contacts + 2 THT shield posts; alternative to J2 - populate only ONE
+J2,1,USB_C_Host,USB_C_Receptacle_HRO_TYPE-C-31-M-12,USB Type-C 2.0 16-pin receptacle (mouse/keyboard input),TYPE-C-31-M-12 (HRO; NextPCB in stock),NextPCB SMT,Pure SMD - preferred for turnkey; alternative to J1 - populate only ONE
+U2,1,USBLC6-2SC6,SOT-23-6,USB 2.0 ESD / TVS diode array protecting the host port D+/D-,USBLC6-2SC6 (SOT-23-6; NextPCB in stock),NextPCB SMT,Domain 1; low-capacitance USB-rated clamp near the connectors

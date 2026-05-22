@@ -73,6 +73,23 @@ FOOTPRINTS = {
                 "U2": "Package_TO_SOT_SMD:SOT-23-6"},
 }
 
+# Part identity for the BOM, embedded as schematic properties so KiCad and
+# BOM-<variant>.csv stay in sync. Only the compact (turnkey) variant is pinned to
+# specific NextPCB in-stock MPNs; the Picos carry the Pico 2 module SKU (intent;
+# NextPCB does not stock the module - see BOM note). ref -> (MPN, manufacturer).
+# C1 is deliberately unset: any 100nF 0805 X7R from the fab's basic library.
+PART_MPN = {
+    "compact": {
+        "A1": ("SC1631", "Raspberry Pi"), "A2": ("SC1631", "Raspberry Pi"),
+        "A3": ("SC1631", "Raspberry Pi"),
+        "U1": ("6N137SM", "onsemi"),
+        "R1": ("RC0805JR-07470RL", "Yageo"), "R2": ("RC0805FR-07680RL", "Yageo"),
+        "R3": ("AC0805FR-0756KL", "Yageo"), "R4": ("AC0805FR-0756KL", "Yageo"),
+        "J1": ("292303-7", "TE Connectivity"), "J2": ("TYPE-C-31-M-12", "HRO"),
+        "U2": ("USBLC6-2SC6", "STMicroelectronics"),
+    },
+}
+
 # placement centre (mm) on the sheet, all at angle 0. Connectivity comes from the
 # net labels (same-named labels join regardless of distance), so these positions
 # only need to keep symbols from overlapping. J2/R3/R4 are compact-only.
@@ -188,7 +205,7 @@ def label(net, x, y, angle):
             f'\t\t(uuid "{uid()}")\n\t)\n')
 
 
-def instance(ref, lib_id, value, footprint, x, y, pin_nums, root):
+def instance(ref, lib_id, value, footprint, x, y, pin_nums, root, mpn="", manufacturer=""):
     out = [f'\t(symbol\n\t\t(lib_id "{lib_id}")\n\t\t(at {x:.2f} {y:.2f} 0)\n'
            '\t\t(unit 1)\n\t\t(exclude_from_sim no)\n\t\t(in_bom yes)\n'
            '\t\t(on_board yes)\n\t\t(dnp no)\n'
@@ -199,6 +216,12 @@ def instance(ref, lib_id, value, footprint, x, y, pin_nums, root):
            '\t\t\t(effects (font (size 1.27 1.27)))\n\t\t)\n'
            f'\t\t(property "Footprint" "{footprint}"\n\t\t\t(at {x:.2f} {y:.2f} 0)\n'
            '\t\t\t(effects (font (size 1.27 1.27)) (hide yes))\n\t\t)\n']
+    # BOM part identity (hidden) - keeps the schematic in sync with BOM-<variant>.csv
+    for field, val in (("MPN", mpn), ("Manufacturer", manufacturer)):
+        if val:
+            out.append(
+                f'\t\t(property "{field}" "{val}"\n\t\t\t(at {x:.2f} {y:.2f} 0)\n'
+                '\t\t\t(effects (font (size 1.27 1.27)) (hide yes))\n\t\t)\n')
     for n in pin_nums:
         out.append(f'\t\t(pin "{n}"\n\t\t\t(uuid "{uid()}")\n\t\t)\n')
     out.append(f'\t\t(instances\n\t\t\t(project "screen-hopper"\n'
@@ -225,10 +248,13 @@ def build(variant, out_path):
     parts.append("\t)\n")
 
     # symbol instances
+    mpn_map = PART_MPN.get(variant, {})
     for ref, (lib_id, _lib, _src, value) in comp.items():
         x, y = PLACE[ref]
         fp = FOOTPRINTS[variant][ref]
-        parts.append(instance(ref, lib_id, value, fp, x, y, sorted(pins[lib_id]), root))
+        mpn, mfr = mpn_map.get(ref, ("", ""))
+        parts.append(instance(ref, lib_id, value, fp, x, y, sorted(pins[lib_id]),
+                              root, mpn=mpn, manufacturer=mfr))
 
     # net labels on each pin connection point (angle-0 transform: x+lx, y-ly)
     for net, members in nets(variant):
