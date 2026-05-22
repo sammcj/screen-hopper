@@ -8,7 +8,7 @@ Three variants are provided from the same netlist:
 | ------- | ------ | ---- | -------- |
 | Compact SMD | [`smd/`](smd/) | 92 x 82 mm | Optocoupler + passives reflowed by the fab; you mount the three Picos flat, single-sided |
 | Through-hole | [`tht/`](tht/) | 112 x 106 mm | You solder everything; Picos A and Forwarder on headers |
-| Double-sided | [`compact/`](compact/) | 89 x 59 mm | Smallest by area. Pico B reflows on the back under Pico A; adds a USB-C host port |
+| Double-sided | [`compact/`](compact/) | 81 x 59 mm | Smallest by area. Pico B reflows on the back under Pico A; adds a USB-C host port |
 
 ![SMD board top view](smd/preview-top.png)
 

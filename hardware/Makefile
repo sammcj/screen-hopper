@@ -28,7 +28,7 @@ unplaced:             ## footprints + netlist only, no placement/routing (for ex
 check:                ## re-verify the already-built boards (connectivity/clearance/isolation) and schematics
 	$(PY) lib/check_board.py smd/screen-hopper-smd.kicad_pcb 65.03 68.97
 	$(PY) lib/check_board.py tht/screen-hopper-tht.kicad_pcb 68.69 75.31
-	$(PY) lib/check_board.py compact/screen-hopper-compact.kicad_pcb 57.02 60.98 0.15
+	$(PY) lib/check_board.py compact/screen-hopper-compact.kicad_pcb 49.02 52.98 0.15
 	$(PY) lib/check_sch.py smd/screen-hopper-smd.kicad_sch
 	$(PY) lib/check_sch.py tht/screen-hopper-tht.kicad_sch
 	$(PY) lib/check_sch.py compact/screen-hopper-compact.kicad_sch

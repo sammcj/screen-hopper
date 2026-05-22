@@ -177,13 +177,16 @@ class Builder:
         # Compact double-sided. Domain 1 (left): Pico A on top with Pico B stacked
         # on the back (same x,y), plus host connectors J1/J2 and CC resistors.
         # Domain 2 (right): Forwarder, opto output, R2, C1. Opto straddles the gap.
-        "compact": {"A1": (40, 30, 0), "A2": (40, 30, 0),
-                    "U1": (59, 26, 0), "A3": (77, 30, 0),
-                    "R1": (54, 22, 0), "R2": (64, 22, 0), "C1": (63, 40, 0),
-                    "R3": (26, 40, 0), "R4": (26, 44, 0),
-                    # U2 = USB ESD array, placed close to the connectors (the ESD
-                    # entry point) so its clamp path is short. Domain 1.
-                    "U2": (24, 28, 0),
+        # The three small domain-1 parts (U2/R3/R4) tuck into the Y-gap between J1
+        # and J2 in the connector column, so Pico A abuts the connectors and the
+        # whole right-hand cluster sits 8mm further left than a naive layout.
+        "compact": {"A1": (32, 30, 0), "A2": (32, 30, 0),
+                    "U1": (51, 26, 0), "A3": (69, 30, 0),
+                    "R1": (46, 22, 0), "R2": (56, 22, 0), "C1": (55, 40, 0),
+                    # U2 = USB ESD array; R3/R4 = USB-C CC pull-ups. All domain 1,
+                    # parked in the pocket between J1 (above) and J2 (below) on the
+                    # left edge, close to the connector data/CC pins they tap.
+                    "U2": (16, 27.5, 0), "R3": (16, 31, 0), "R4": (16, 33.5, 0),
                     # Both host connectors face the left board edge (mouth = -X),
                     # verified via pad-centroid-vs-courtyard, NOT the cosmetic 3D
                     # model. They have different depths, so they're placed by X to
