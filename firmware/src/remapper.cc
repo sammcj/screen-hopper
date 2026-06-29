@@ -396,6 +396,51 @@ bool within_bounds(int64_t x, int64_t y, int8_t& active_screen) {
             (constraint_mode == ConstraintMode::NO_CONSTRAINT));
 }
 
+// Dead-band crossing helpers. When the cursor pushes toward a same-output
+// neighbour that exists at the target coordinate on the push axis but is offset
+// on the other axis (e.g. a shorter side monitor sitting lower than a tall main
+// one), the within_bounds checks only slide the cursor along the current edge
+// and it "sticks". These find the nearest such neighbour so the caller can snap
+// the off-axis coordinate into it and let the crossing through. Restricted to
+// the same output so they never bypass the remote's edge-resistance crossing.
+static int8_t snap_target_screen_x(int64_t target_x, int64_t from_y, int8_t from_screen) {
+    if (from_screen < 0) return -1;
+    uint8_t want_output = screens[from_screen].output;
+    int8_t best = -1;
+    int64_t best_dist = INT64_MAX;
+    for (uint8_t i = 0; i < NSCREENS; i++) {
+        if ((int8_t) i == from_screen || screens[i].w == 0 || screens[i].output != want_output) continue;
+        if (!(screens[i].x <= target_x && target_x < screens[i].x + screens[i].w)) continue;
+        int64_t lo = screens[i].y;
+        int64_t hi = screens[i].y + screens[i].h - 1;
+        int64_t dist = (from_y < lo) ? (lo - from_y) : (from_y > hi ? from_y - hi : 0);
+        if (dist < best_dist) {
+            best_dist = dist;
+            best = (int8_t) i;
+        }
+    }
+    return best;
+}
+
+static int8_t snap_target_screen_y(int64_t target_y, int64_t from_x, int8_t from_screen) {
+    if (from_screen < 0) return -1;
+    uint8_t want_output = screens[from_screen].output;
+    int8_t best = -1;
+    int64_t best_dist = INT64_MAX;
+    for (uint8_t i = 0; i < NSCREENS; i++) {
+        if ((int8_t) i == from_screen || screens[i].w == 0 || screens[i].output != want_output) continue;
+        if (!(screens[i].y <= target_y && target_y < screens[i].y + screens[i].h)) continue;
+        int64_t lo = screens[i].x;
+        int64_t hi = screens[i].x + screens[i].w - 1;
+        int64_t dist = (from_x < lo) ? (lo - from_x) : (from_x > hi ? from_x - hi : 0);
+        if (dist < best_dist) {
+            best_dist = dist;
+            best = (int8_t) i;
+        }
+    }
+    return best;
+}
+
 void queue_relative_movement(int16_t dx, int16_t dy, int16_t wheel, int16_t pan, uint8_t screen_idx) {
     // Byte 0 of the relative report is the 8-button bitmap (same usages as the
     // absolute report, same device). Carry the buttons built this frame so a
@@ -806,7 +851,8 @@ void process_mapping(bool auto_repeat) {
         int64_t land_x = cursor_x;
         int64_t land_y = cursor_y;
         int8_t land_screen = active_screen;
-        if (within_bounds(new_cursor_x, new_cursor_y, new_active_screen)) {
+        bool full_move_ok = within_bounds(new_cursor_x, new_cursor_y, new_active_screen);
+        if (full_move_ok) {
             land_x = new_cursor_x;
             land_y = new_cursor_y;
             land_screen = new_active_screen;
@@ -816,6 +862,34 @@ void process_mapping(bool auto_repeat) {
         } else if (within_bounds(new_cursor_x, cursor_y, new_active_screen)) {
             land_x = new_cursor_x;
             land_screen = new_active_screen;
+        }
+
+        // Dead-band snap: the intended move was blocked and the chain above only
+        // slid us along the current edge (a same-output neighbour exists in the
+        // push direction but is offset on the other axis). Snap the off-axis
+        // coordinate into that neighbour so the crossing always goes through,
+        // instead of the cursor sticking until it's nudged into the overlap band.
+        if (!full_move_ok && land_screen == active_screen) {
+            if (dx != 0 && new_cursor_x != cursor_x) {
+                int8_t s = snap_target_screen_x(new_cursor_x, cursor_y, active_screen);
+                if (s != -1) {
+                    land_screen = s;
+                    int64_t min_x = screens[s].x, max_x = screens[s].x + screens[s].w - 1;
+                    int64_t min_y = screens[s].y, max_y = screens[s].y + screens[s].h - 1;
+                    land_x = new_cursor_x < min_x ? min_x : (new_cursor_x > max_x ? max_x : new_cursor_x);
+                    land_y = cursor_y < min_y ? min_y : (cursor_y > max_y ? max_y : cursor_y);
+                }
+            }
+            if (land_screen == active_screen && dy != 0 && new_cursor_y != cursor_y) {
+                int8_t s = snap_target_screen_y(new_cursor_y, cursor_x, active_screen);
+                if (s != -1) {
+                    land_screen = s;
+                    int64_t min_x = screens[s].x, max_x = screens[s].x + screens[s].w - 1;
+                    int64_t min_y = screens[s].y, max_y = screens[s].y + screens[s].h - 1;
+                    land_y = new_cursor_y < min_y ? min_y : (new_cursor_y > max_y ? max_y : new_cursor_y);
+                    land_x = cursor_x < min_x ? min_x : (cursor_x > max_x ? max_x : cursor_x);
+                }
+            }
         }
 
         // Edge resistance: crossing to a screen on the *other* computer (a
@@ -848,6 +922,7 @@ void process_mapping(bool auto_repeat) {
             edge_push = 0;
         }
 
+        int64_t pre_cross_y = cursor_y;  // host y before the crossing (cursor ~ host while on a display)
         cursor_x = land_x;
         cursor_y = land_y;
         active_screen = land_screen;
@@ -858,24 +933,45 @@ void process_mapping(bool auto_repeat) {
         // relative drag motion already carries the cursor across, so the burst
         // is only needed here on the no-button path.)
         static const int16_t CROSSING_DELTA = 100;
+        static const int64_t CROSSING_DY_CAP = 1000;  // bound the vertical follow burst
         if (active_screen != -1 && prev_active_screen != -1 &&
             active_screen != prev_active_screen &&
             screens.count(active_screen) && screens.count(prev_active_screen) &&
             screens[active_screen].output == screens[prev_active_screen].output) {
 
+            // Horizontal: a deliberate nudge toward the target's side to cross the
+            // macOS seam (the cursor sits on the seam, so its own x delta is ~0 and
+            // can't carry it). Vertical: FOLLOW the actual jump the cursor made
+            // (land_y - pre_cross_y). The old centre-to-centre rel_dy pushed a fixed
+            // direction no matter where on the edge you crossed, so crossing low
+            // into a vertically-offset display shoved the pointer off the target's
+            // far edge and it wrapped. Following the real displacement lands the
+            // pointer in the target's actual span; the absolute report then
+            // fine-positions. Any accel overshoot goes deeper into the target (we
+            // aim at the nearest edge), so it stays on the right display.
             int16_t rel_dx = 0;
-            int16_t rel_dy = 0;
             int64_t prev_cx = screens[prev_active_screen].x + screens[prev_active_screen].w / 2;
             int64_t new_cx = screens[active_screen].x + screens[active_screen].w / 2;
-            int64_t prev_cy = screens[prev_active_screen].y + screens[prev_active_screen].h / 2;
-            int64_t new_cy = screens[active_screen].y + screens[active_screen].h / 2;
-
             if (new_cx > prev_cx) rel_dx = CROSSING_DELTA;
             else if (new_cx < prev_cx) rel_dx = -CROSSING_DELTA;
-            if (new_cy > prev_cy) rel_dy = CROSSING_DELTA;
-            else if (new_cy < prev_cy) rel_dy = -CROSSING_DELTA;
+
+            int64_t upp = screens[active_screen].scale > 0 ? screens[active_screen].scale : coord_scale;
+            int64_t dy_follow = (upp > 0) ? (land_y - pre_cross_y) / upp : 0;
+            if (dy_follow > CROSSING_DY_CAP) dy_follow = CROSSING_DY_CAP;
+            else if (dy_follow < -CROSSING_DY_CAP) dy_follow = -CROSSING_DY_CAP;
+            int16_t rel_dy = (int16_t) dy_follow;
 
             queue_relative_movement(rel_dx, rel_dy, 0, 0, active_screen);
+
+            // Suppress the absolute report on the crossing frame. The relative
+            // burst above carries the pointer across the macOS display seam; if
+            // the absolute report also went out this frame it would be the last
+            // word and warp the pointer to wherever it maps on the CURRENT
+            // display (for a non-primary display at the edge, that's the far edge
+            // of the primary - the cursor "wraps" to the other monitor). Letting
+            // the burst land first, then resuming absolute next frame once the
+            // pointer is on the new display, keeps them from fighting.
+            suppress_abs_mouse = true;
         }
     } else {
         // Button held: drag via the relative report. macOS won't synthesise
