@@ -411,6 +411,11 @@ static int8_t snap_target_screen_x(int64_t target_x, int64_t from_y, int8_t from
     for (uint8_t i = 0; i < NSCREENS; i++) {
         if ((int8_t) i == from_screen || screens[i].w == 0 || screens[i].output != want_output) continue;
         if (!(screens[i].x <= target_x && target_x < screens[i].x + screens[i].w)) continue;
+        // Must be a genuine left/right neighbour: disjoint from the source on X.
+        // A screen that merely overlaps our column (e.g. a tall main display
+        // beside us whose X-range we're not in) is not a horizontal neighbour.
+        if (!(screens[i].x + screens[i].w <= screens[from_screen].x ||
+              screens[i].x >= screens[from_screen].x + screens[from_screen].w)) continue;
         int64_t lo = screens[i].y;
         int64_t hi = screens[i].y + screens[i].h - 1;
         int64_t dist = (from_y < lo) ? (lo - from_y) : (from_y > hi ? from_y - hi : 0);
@@ -430,6 +435,12 @@ static int8_t snap_target_screen_y(int64_t target_y, int64_t from_x, int8_t from
     for (uint8_t i = 0; i < NSCREENS; i++) {
         if ((int8_t) i == from_screen || screens[i].w == 0 || screens[i].output != want_output) continue;
         if (!(screens[i].y <= target_y && target_y < screens[i].y + screens[i].h)) continue;
+        // Must be a genuine above/below neighbour: disjoint from the source on Y.
+        // A screen beside us whose Y-range merely spans ours (e.g. a taller main
+        // display) is not a vertical neighbour - snapping to it on an up/down push
+        // teleported the cursor sideways and macOS wrapped it within our screen.
+        if (!(screens[i].y + screens[i].h <= screens[from_screen].y ||
+              screens[i].y >= screens[from_screen].y + screens[from_screen].h)) continue;
         int64_t lo = screens[i].x;
         int64_t hi = screens[i].x + screens[i].w - 1;
         int64_t dist = (from_x < lo) ? (lo - from_x) : (from_x > hi ? from_x - hi : 0);
