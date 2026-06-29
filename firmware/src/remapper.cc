@@ -869,8 +869,19 @@ void process_mapping(bool auto_repeat) {
         // push direction but is offset on the other axis). Snap the off-axis
         // coordinate into that neighbour so the crossing always goes through,
         // instead of the cursor sticking until it's nudged into the overlap band.
-        if (!full_move_ok && land_screen == active_screen) {
-            if (dx != 0 && new_cursor_x != cursor_x) {
+        if (!full_move_ok && land_screen == active_screen && active_screen != -1 && screens.count(active_screen)) {
+            int64_t a_min_x = screens[active_screen].x;
+            int64_t a_max_x = screens[active_screen].x + screens[active_screen].w - 1;
+            int64_t a_min_y = screens[active_screen].y;
+            int64_t a_max_y = screens[active_screen].y + screens[active_screen].h - 1;
+            // Only snap on the axis the cursor is actually leaving the current
+            // screen on. Otherwise a push into an outer edge with no neighbour
+            // that way (e.g. right off the rightmost screen) gets yanked sideways
+            // to an unrelated screen just because the incidental cross-axis drift
+            // happens to line up with that screen's span.
+            bool leaving_x = (new_cursor_x < a_min_x) || (new_cursor_x > a_max_x);
+            bool leaving_y = (new_cursor_y < a_min_y) || (new_cursor_y > a_max_y);
+            if (dx != 0 && leaving_x) {
                 int8_t s = snap_target_screen_x(new_cursor_x, cursor_y, active_screen);
                 if (s != -1) {
                     land_screen = s;
@@ -880,7 +891,7 @@ void process_mapping(bool auto_repeat) {
                     land_y = cursor_y < min_y ? min_y : (cursor_y > max_y ? max_y : cursor_y);
                 }
             }
-            if (land_screen == active_screen && dy != 0 && new_cursor_y != cursor_y) {
+            if (land_screen == active_screen && dy != 0 && leaving_y) {
                 int8_t s = snap_target_screen_y(new_cursor_y, cursor_x, active_screen);
                 if (s != -1) {
                     land_screen = s;
