@@ -45,7 +45,7 @@ absolute paths (the script's Python and `pbpaste`), because such tools run scrip
 minimal shell without your normal `PATH`, and pipe `pbpaste` in explicitly rather than
 relying on the clipboard fallback.
 
-The text is buffered on Pico A (cap: 4096 bytes - longer input is truncated) and replayed at ~70 characters/second through the forwarder's USB HID keyboard interface. Bytes outside printable US-ASCII (plus tab and newline) are dropped; the CLI warns about them and exits unless you pass `--force`. The remote machine must be on a US keyboard layout for punctuation to land correctly; letters and digits are layout-independent.
+The text is buffered on Pico A (cap: 4096 bytes - longer input is truncated) and replayed at ~70 characters/second through the forwarder's USB HID keyboard interface. Bytes outside printable US-ASCII (plus tab and newline) are dropped by the firmware, so the CLI transliterates non-ASCII first: box drawing becomes `+-|`, smart quotes and dashes become their ASCII forms, accents are stripped (`café` -> `cafe`), symbols get spelled out (`©` -> `(c)`, `½` -> `1/2`, `⌘` -> `cmd`), and ANSI colour escapes plus stray control bytes are removed. Characters with no ASCII form at all (emoji, CJK, Greek) are dropped and listed as a warning. Pass `--raw` to send the bytes untouched; anything still unsupported is listed and the CLI exits unless you pass `--force`. The remote machine must be on a US keyboard layout for punctuation to land correctly; letters and digits are layout-independent.
 
 ![Screen hopper dual Pico version](images/screen-hopper.jpg)
 
