@@ -74,10 +74,10 @@ std::vector<activate_profile_binding_t> activate_profile_usages;
 static int8_t pending_profile_switch = -1;
 
 // Forward declarations: process_mapping() kicks off cursor gestures (the
-// jiggler-on confirmation sweep and the profile-number draw) and cancels the
+// jiggler toggle confirmation and the profile-number draw) and cancels the
 // local gesture on real mouse input, but the gesture player's state and helpers
 // live alongside maybe_jiggle() down near the end of the file.
-static void start_jiggle_activation_sweep();
+static void start_jiggle_toggle_gesture(bool enabled);
 static void start_profile_number_gesture(uint8_t profile_index);
 static void cancel_local_gesture();
 
@@ -726,12 +726,10 @@ void process_mapping(bool auto_repeat) {
             if ((prev_input_state[usage] == 0) && (input_state[usage] != 0)) {
                 jiggle_enabled = !jiggle_enabled;
                 blink(jiggle_enabled ? BLINK_PULSES_ON : BLINK_PULSES_OFF);
-                // Only on OFF -> ON: kick a one-shot cursor sweep on the
-                // forwarder so the toggle landing is visible on the remote
-                // machine without looking at the LED.
-                if (jiggle_enabled) {
-                    start_jiggle_activation_sweep();
-                }
+                // Draw the state the toggle landed in: a circle for on, the
+                // cross sweep for off. Both directions get a shape so the
+                // toggle is readable without looking at the LED.
+                start_jiggle_toggle_gesture(jiggle_enabled);
             }
         }
         prev_input_state[usage] = input_state[usage];
@@ -1905,10 +1903,9 @@ static void cancel_local_gesture() {
     gesture_players[GESTURE_LOCAL].strokes = nullptr;
 }
 
-// Jiggler-on confirmation: a ~250 px box traced down/up/right/left back to the
-// start. Plays on the second computer (it is what gets jiggled) AND on the main
-// computer so the user gets the confirmation on their own screen. Only fires on
-// OFF -> ON toggles.
+// Jiggler-off confirmation: a ~250 px cross traced down/up/right/left back to
+// the start. Plays on the second computer (it is what gets jiggled) AND on the
+// main computer so the user gets the confirmation on their own screen.
 static const gesture_stroke_t JIGGLE_SWEEP[] = {
     { 0,  250 },   // down
     { 0, -250 },   // back up
@@ -1916,9 +1913,24 @@ static const gesture_stroke_t JIGGLE_SWEEP[] = {
     { -250, 0 },   // back left
 };
 
-static void start_jiggle_activation_sweep() {
-    gesture_start(GESTURE_FORWARDER, JIGGLE_SWEEP, GESTURE_LEN(JIGGLE_SWEEP), find_forwarder_screen());
-    gesture_start(GESTURE_LOCAL, JIGGLE_SWEEP, GESTURE_LEN(JIGGLE_SWEEP), find_local_screen());
+// Jiggler-on confirmation: a 280 px circle (20 chords of a radius-140 circle,
+// clockwise from the top). The chords are differences between rounded points on
+// the circle, so they sum to exactly (0, 0) and the cursor lands where it
+// started no matter where the gesture began.
+static const gesture_stroke_t JIGGLE_CIRCLE[] = {
+    {   43,    7 }, {   39,   20 }, {   31,   31 }, {   20,   39 },
+    {    7,   43 }, {   -7,   43 }, {  -20,   39 }, {  -31,   31 },
+    {  -39,   20 }, {  -43,    7 }, {  -43,   -7 }, {  -39,  -20 },
+    {  -31,  -31 }, {  -20,  -39 }, {   -7,  -43 }, {    7,  -43 },
+    {   20,  -39 }, {   31,  -31 }, {   39,  -20 }, {   43,   -7 },
+};
+
+// Draw the state the jiggler toggle landed in on both machines.
+static void start_jiggle_toggle_gesture(bool enabled) {
+    const gesture_stroke_t* strokes = enabled ? JIGGLE_CIRCLE : JIGGLE_SWEEP;
+    uint8_t n = enabled ? GESTURE_LEN(JIGGLE_CIRCLE) : GESTURE_LEN(JIGGLE_SWEEP);
+    gesture_start(GESTURE_FORWARDER, strokes, n, find_forwarder_screen());
+    gesture_start(GESTURE_LOCAL, strokes, n, find_local_screen());
 }
 
 // Profile-number draw: when the active layout preset changes, trace its number
