@@ -150,6 +150,12 @@ apply_config() {
         echo "Config file not found: $CONFIG_JSON" >&2
         exit 1
     fi
+    # The pip `hid` package dlopens libhidapi and doesn't search the Homebrew
+    # prefix. Without this the enumerate probe below fails on the import and
+    # reports a bogus "did not re-enumerate".
+    local brew_prefix
+    brew_prefix="$(brew --prefix 2>/dev/null || echo /opt/homebrew)"
+    export DYLD_LIBRARY_PATH="$brew_prefix/lib${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"
     echo "Waiting for device to re-enumerate ..."
     for _ in $(seq 1 30); do
         if python3 -c 'import hid; hid.Device(0xCAFE, 0xBAF3).close()' 2>/dev/null; then

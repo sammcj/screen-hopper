@@ -38,6 +38,7 @@ const uint32_t SWITCH_SCREEN_USAGE = 0xFFF20001;
 const uint32_t CYCLE_PROFILE_USAGE = 0xFFF30000;             // next profile (mod profile_count)
 const uint32_t ACTIVATE_PROFILE_USAGE_BASE = 0xFFF30001;     // 0xFFF30001..04 activate slots 0..3
 const uint32_t TOGGLE_JIGGLE_USAGE = 0xFFF30010;             // flip the jiggler on/off
+const uint32_t TOGGLE_ABS_SMOOTH_USAGE = 0xFFF30011;         // flip absolute-position upsampling on/off
 
 const uint8_t NLAYERS = 4;
 const uint32_t LAYERS_USAGE_PAGE = 0xFFF10000;
@@ -57,6 +58,21 @@ std::vector<uint64_t> sticky_usages;  // non-layer triggering, layer << 32 | usa
 std::vector<uint64_t> screen_switching_usages;
 std::vector<uint64_t> cycle_profile_usages;        // layer << 32 | source_usage
 std::vector<uint64_t> toggle_jiggle_usages;        // layer << 32 | source_usage
+std::vector<uint64_t> toggle_abs_smooth_usages;    // layer << 32 | source_usage
+
+// Absolute-position upsampling. A 125 Hz mouse delivers one position per 8 ms
+// but the host polls us at 1 kHz, so each new sample is walked out over the
+// following ABS_SMOOTH_SEGMENT_US in 1 ms steps instead of landing in one hop.
+// Costs one sample interval of pointer latency; smooths the 125 Hz -> display
+// refresh beat. Only the no-button absolute path is upsampled: drags and
+// crossing bursts are relative and stay untouched (their gain model is fit to
+// per-flush speed at the mouse's native rate). Runtime toggle, not persisted.
+static const uint64_t ABS_SMOOTH_SEGMENT_US = 8000;
+static bool abs_smooth_enabled = true;
+static int64_t abs_smooth_start_x = 0, abs_smooth_start_y = 0;    // pointer at segment start
+static int64_t abs_smooth_target_x = 0, abs_smooth_target_y = 0;  // cursor_x/y being walked to
+static uint64_t abs_smooth_t0_us = 0;
+static int8_t abs_smooth_screen = -1;
 // Each activate-profile entry encodes (layer << 32 | source_usage) plus the
 // destination slot index in the low byte of a separate parallel vector.
 struct activate_profile_binding_t {
@@ -253,6 +269,7 @@ void set_mapping_from_config() {
     std::unordered_set<uint64_t> screen_switching_usages_set;
     std::unordered_set<uint64_t> cycle_profile_usages_set;
     std::unordered_set<uint64_t> toggle_jiggle_usages_set;
+    std::unordered_set<uint64_t> toggle_abs_smooth_usages_set;
     std::unordered_set<uint32_t> mapped;
 
     reverse_mapping.clear();
@@ -284,6 +301,9 @@ void set_mapping_from_config() {
         if (mapping.target_usage == TOGGLE_JIGGLE_USAGE) {
             toggle_jiggle_usages_set.insert(((uint64_t) mapping.layer << 32) | mapping.source_usage);
         }
+        if (mapping.target_usage == TOGGLE_ABS_SMOOTH_USAGE) {
+            toggle_abs_smooth_usages_set.insert(((uint64_t) mapping.layer << 32) | mapping.source_usage);
+        }
         if (mapping.target_usage >= ACTIVATE_PROFILE_USAGE_BASE &&
             mapping.target_usage < ACTIVATE_PROFILE_USAGE_BASE + NPROFILES) {
             // Match the codebase's compound-literal idiom (see map_source_t
@@ -301,6 +321,7 @@ void set_mapping_from_config() {
     screen_switching_usages.assign(screen_switching_usages_set.begin(), screen_switching_usages_set.end());
     cycle_profile_usages.assign(cycle_profile_usages_set.begin(), cycle_profile_usages_set.end());
     toggle_jiggle_usages.assign(toggle_jiggle_usages_set.begin(), toggle_jiggle_usages_set.end());
+    toggle_abs_smooth_usages.assign(toggle_abs_smooth_usages_set.begin(), toggle_abs_smooth_usages_set.end());
 
     if (unmapped_passthrough) {
         for (auto const& [usage, usage_def] : our_usages_flat) {
@@ -337,6 +358,7 @@ void screens_updated() {
     }
     cursor_x = screens[active_screen].x + screens[active_screen].w / 2;
     cursor_y = screens[active_screen].y + screens[active_screen].h / 2;
+    abs_smooth_screen = -1;  // re-centre is a warp, not a sample to walk to
 }
 
 bool differ_on_absolute(const uint8_t* report1, const uint8_t* report2, uint8_t report_id) {
@@ -586,6 +608,30 @@ void drop_unsent_relative_motion() {
     }
 }
 
+// Pointer position along the current upsampling segment: linear from start to
+// target over ABS_SMOOTH_SEGMENT_US, then parked exactly on target.
+static void abs_smooth_position(uint64_t now, int64_t& x, int64_t& y) {
+    uint64_t elapsed = now - abs_smooth_t0_us;
+    if (elapsed >= ABS_SMOOTH_SEGMENT_US) {
+        x = abs_smooth_target_x;
+        y = abs_smooth_target_y;
+        return;
+    }
+    x = abs_smooth_start_x + (abs_smooth_target_x - abs_smooth_start_x) * (int64_t) elapsed / (int64_t) ABS_SMOOTH_SEGMENT_US;
+    y = abs_smooth_start_y + (abs_smooth_target_y - abs_smooth_start_y) * (int64_t) elapsed / (int64_t) ABS_SMOOTH_SEGMENT_US;
+}
+
+// Park the smoother on the true cursor. Used whenever the absolute report is
+// not the thing moving the pointer (drag, crossing burst, screen change) so the
+// next absolute frame resumes from where the firmware knows the pointer is
+// rather than replaying a stale segment.
+static void abs_smooth_snap(int8_t screen) {
+    abs_smooth_start_x = abs_smooth_target_x = cursor_x;
+    abs_smooth_start_y = abs_smooth_target_y = cursor_y;
+    abs_smooth_t0_us = 0;
+    abs_smooth_screen = screen;
+}
+
 void process_mapping(bool auto_repeat) {
     if (suspended) {
         return;
@@ -673,6 +719,7 @@ void process_mapping(bool auto_repeat) {
                 }
                 cursor_x = screens[active_screen].x + screens[active_screen].w / 2;
                 cursor_y = screens[active_screen].y + screens[active_screen].h / 2;
+                abs_smooth_screen = -1;
                 // A deliberate switch warps the cursor to the new screen centre;
                 // don't let a pending post-drag hold suppress that reposition.
                 defer_abs_after_drag = false;
@@ -730,6 +777,20 @@ void process_mapping(bool auto_repeat) {
                 // cross sweep for off. Both directions get a shape so the
                 // toggle is readable without looking at the LED.
                 start_jiggle_toggle_gesture(jiggle_enabled);
+            }
+        }
+        prev_input_state[usage] = input_state[usage];
+    }
+
+    // Toggle absolute-position upsampling. Same LED feedback as the jiggler
+    // (3 pulses on, 5 off); the two are told apart by which key was pressed.
+    for (auto const& layer_usage : toggle_abs_smooth_usages) {
+        uint32_t usage = layer_usage & 0xFFFFFFFF;
+        uint32_t layer = layer_usage >> 32;
+        if (layer_state[layer]) {
+            if ((prev_input_state[usage] == 0) && (input_state[usage] != 0)) {
+                abs_smooth_enabled = !abs_smooth_enabled;
+                blink(abs_smooth_enabled ? BLINK_PULSES_ON : BLINK_PULSES_OFF);
             }
         }
         prev_input_state[usage] = input_state[usage];
@@ -994,6 +1055,15 @@ void process_mapping(bool auto_repeat) {
             suppress_abs_mouse = true;
         }
     } else {
+        // Press edge while the upsampler is mid-segment: the host pointer sits
+        // at the last emitted step, short of cursor_x by up to one sample.
+        // Dead-reckon the drag from where the host actually is, or the
+        // post-release abs report carries that lag as a forward bias.
+        if (held_buttons != 0 && prev_frame_buttons == 0 && abs_smooth_enabled &&
+            active_screen != -1 && active_screen == abs_smooth_screen) {
+            abs_smooth_position(time_us_64(), cursor_x, cursor_y);
+        }
+
         // Button held: drag via the relative report. macOS won't synthesise
         // drag events from absolute warps, and only registers a button
         // transition that arrives with motion, so a held button (and its
@@ -1163,9 +1233,36 @@ void process_mapping(bool auto_repeat) {
         }
     }
 
+    // Local host only. The forwarder has no queue: it drops any frame that
+    // arrives while its endpoint still holds the previous report, and output-1
+    // reports drain over serial back-to-back with no tud_hid_ready() throttle.
+    // A 1 kHz abs stream to the remote would make key and click reports queued
+    // alongside it land on a busy endpoint and vanish (stuck buttons/modifiers).
+    bool abs_smooth_now = abs_smooth_enabled && active_screen != -1 && !suppress_abs_mouse &&
+                          screens[active_screen].output == 0;
+    if (!abs_smooth_now) {
+        abs_smooth_snap(active_screen);
+    }
+
     if (active_screen != -1 && !suppress_abs_mouse) {
-        int64_t local_x = (cursor_x - screens[active_screen].x) * 32768 / screens[active_screen].w;
-        int64_t local_y = (cursor_y - screens[active_screen].y) * 32768 / screens[active_screen].h;
+        int64_t abs_x = cursor_x;
+        int64_t abs_y = cursor_y;
+        if (abs_smooth_now) {
+            uint64_t now = time_us_64();
+            if (active_screen != abs_smooth_screen) {
+                abs_smooth_snap(active_screen);
+            } else if (cursor_x != abs_smooth_target_x || cursor_y != abs_smooth_target_y) {
+                // New sample: the next segment starts from wherever the pointer
+                // is right now on the old one, so velocity changes stay continuous.
+                abs_smooth_position(now, abs_smooth_start_x, abs_smooth_start_y);
+                abs_smooth_target_x = cursor_x;
+                abs_smooth_target_y = cursor_y;
+                abs_smooth_t0_us = now;
+            }
+            abs_smooth_position(now, abs_x, abs_y);
+        }
+        int64_t local_x = (abs_x - screens[active_screen].x) * 32768 / screens[active_screen].w;
+        int64_t local_y = (abs_y - screens[active_screen].y) * 32768 / screens[active_screen].h;
         // Clamp to the 16-bit absolute range. Without this, a cursor position
         // past the screen edge writes a value > 32767 that truncates in the
         // report field and wraps the pointer to the opposite edge.

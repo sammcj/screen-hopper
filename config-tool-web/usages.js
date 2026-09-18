@@ -153,6 +153,7 @@ const usages = {
     "0xfff30003": { 'name': 'Activate profile 3', 'class': 'other' },
     "0xfff30004": { 'name': 'Activate profile 4', 'class': 'other' },
     "0xfff30010": { 'name': 'Toggle jiggler', 'class': 'other' },
+    "0xfff30011": { 'name': 'Toggle pointer upsampling', 'class': 'other' },
 };
 
 export default usages;

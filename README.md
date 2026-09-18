@@ -29,6 +29,10 @@ Set a profile's `jiggle_interval` (seconds) to have Pico A nudge whichever machi
 
 Bind any source to target usage `0xfff30010` for a runtime on/off toggle - the onboard LED blinks **3 times for ON, 5 times for OFF**. The toggle does not change the persisted interval; it only enables/disables the jiggler for the current power cycle. When the toggle turns the jiggler ON, the cursor on the forwarder machine does a brief down/up/right/left sweep (~250 px each way, returning to where it started) so you can see the toggle landed without looking at the LED.
 
+## Pointer upsampling (experimental)
+
+A 125 Hz mouse (MX Master and similar) hands Pico A one position every 8 ms while the local Mac polls at 1 kHz. With no button held, Pico A walks each new sample out linearly over the following 8 ms in 1 ms steps, so the host sees ~1 kHz updates instead of 8 ms hops. This trades one sample interval of pointer latency for a smoother cursor on 60 Hz displays. Local machine only; drags and everything relative are untouched. On by default. Bind a source to `0xfff30011` to toggle it at runtime (3 blinks on, 5 off). Not persisted.
+
 ## Type text from the clipboard
 
 `config-tool/type_text.py` ships a small CLI that turns text on the Pico-A computer into keystrokes on the forwarder machine, useful for passing a URL, a code snippet or a short password across without needing networking or host software on the second computer.

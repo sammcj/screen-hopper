@@ -4,6 +4,10 @@ all: pico2
 
 BAKED_HEADER := src/baked_config.h
 
+# The pip `hid` package loads libhidapi via dlopen and doesn't look in the
+# Homebrew prefix, so tools that touch USB HID need it on the dyld path.
+HID_ENV := DYLD_LIBRARY_PATH=$(shell brew --prefix 2>/dev/null || echo /opt/homebrew)/lib
+
 # Guard against the silent-drop failure where a host tool's CONFIG_VERSION lags
 # the firmware's (the device rejects the report but the host still reports
 # success). Fails the build listing any stale tool. See check_protocol_version.py.
@@ -68,7 +72,7 @@ ifndef CONFIG
 else
 	@python3 ../config-tool/bake_config.py "$(CONFIG)" > $(BAKED_HEADER)
 	@echo "Baked $(CONFIG) into $(BAKED_HEADER) (will apply on next flash)"
-	@python3 ../config-tool/set_config.py < "$(CONFIG)"
+	@$(HID_ENV) python3 ../config-tool/set_config.py < "$(CONFIG)"
 	@echo "Applied to running Pico A."
 endif
 
@@ -76,4 +80,4 @@ endif
 # verifying which screens/mappings the firmware actually has loaded.
 #   make get-config
 get-config:
-	@python3 ../config-tool/get_config.py
+	@$(HID_ENV) python3 ../config-tool/get_config.py
