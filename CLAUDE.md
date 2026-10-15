@@ -72,6 +72,17 @@ Only Pico A holds screen config. Pico B (USB host) and the forwarder don't read 
 
 Verify what the firmware is actually running with `make get-config`.
 
+## Cursor wraps or sticks when crossing between local displays
+
+Check macOS's display arrangement against the config before touching `remapper.cc`. Same-output crossing is a relative burst over the macOS seam followed by an absolute report that macOS paints onto whichever display the pointer is on. If the firmware's screen rectangles disagree with macOS (laptop scaling or offset changed), the burst lands where macOS has no display, the pointer stays put and the absolute report wraps it to the far edge of the current display. The LG runs as a mirror of a virtual display, which macOS recreates on wake/replug, so the arrangement drifts without anyone changing it. Symptom is height-dependent ("sometimes"): only the band where the two layouts disagree fails.
+
+1. Read the live arrangement (needs WindowServer, run unsandboxed):
+   `swift -e 'import CoreGraphics; var n: UInt32 = 0; var ids = [CGDirectDisplayID](repeating: 0, count: 16); CGGetActiveDisplayList(16, &ids, &n); for i in 0..<Int(n) { let b = CGDisplayBounds(ids[i]); print(ids[i], Int(b.origin.x), Int(b.origin.y), Int(b.width), Int(b.height)) }'`
+2. Compare with the local screens in `config-tool/config-samm-profiles.json` (internal units = px * `coord_scale`).
+3. If they differ: `python3 config-tool/relayout.py config-tool/config-samm-profiles.json --displays 3840x2160@0,0 2056x1329@-2056,676 --remote-res 2056x1329` with the live values, then `make apply-config CONFIG=../config-tool/config-samm-profiles.json` and confirm with `make get-config`. `relayout.py` rewrites only geometry, `coord_scale`, sensitivity and `edge_resistance`; mappings and drag gain are kept.
+
+If the layouts already match, the remaining suspect is burst size: `CROSSING_DELTA` and the dy follow in `remapper.cc` are in counts but macOS moves ~0.26-0.8 px per count (pointer acceleration), so a fast flick or a large dead-band snap can fall short. Confirm with the probe tooling in `firmware/tools/drag-tuning/` before changing it.
+
 ## Flashing
 
 You must run flash commands outside the sandbox.
