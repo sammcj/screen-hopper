@@ -8,14 +8,14 @@
             "partial_scroll_timeout": 1000000,
             "interval_override": 1,
             "constraint_mode": 2,
-            "offscreen_sensitivity": 2223,
-            "coord_scale": 1795,
-            "edge_resistance": 359195,
+            "offscreen_sensitivity": 2100,
+            "coord_scale": 1696,
+            "edge_resistance": 339410,
             "jiggle_interval": 60,
             "screens": [
                 {
                     "x": 0,
-                    "y": 3879310,
+                    "y": 3663500,
                     "w": 10000000,
                     "h": 6464007,
                     "sensitivity": 4003,
@@ -25,24 +25,24 @@
                     "drag_curve_k": 390
                 },
                 {
-                    "x": 3103448,
+                    "x": 3487109,
                     "y": 0,
-                    "w": 6896551,
-                    "h": 3879310,
-                    "sensitivity": 2223,
+                    "w": 6512890,
+                    "h": 3663500,
+                    "sensitivity": 2100,
                     "output": 0,
-                    "scale": 1796,
+                    "scale": 1696,
                     "drag_gain": 260,
                     "drag_curve_k": 390
                 },
                 {
                     "x": 0,
-                    "y": 1081178,
-                    "w": 3103448,
-                    "h": 2006106,
-                    "sensitivity": 2223,
+                    "y": 1146540,
+                    "w": 3487109,
+                    "h": 2254070,
+                    "sensitivity": 2100,
                     "output": 0,
-                    "scale": 1796,
+                    "scale": 1696,
                     "drag_gain": 260,
                     "drag_curve_k": 390
                 }
