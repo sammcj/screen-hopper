@@ -12,3 +12,4 @@ __pycache__/
 dist/
 build/
 *.zip
+config-tool/display_log
