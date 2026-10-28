@@ -8,7 +8,7 @@ display, so a stale layout (laptop scaling or offset changed) makes crossings
 in the mismatched band wrap instead of landing. Same maths as generate_config.py.
 
 Usage:
-  relayout.py config.json --displays 3840x2160@0,0 2056x1329@-2056,0 --remote-res 2056x1329
+  relayout.py config.json --displays 3360x1890@0,0 3360x1890@-3360,0 --remote-res 2056x1329 --remote-under 0
 """
 import argparse
 import json
@@ -28,6 +28,8 @@ def main():
     ap.add_argument("--displays", nargs="+", required=True, help="WxH@X,Y per local display, main first")
     ap.add_argument("--remote-res", default="2056x1329")
     ap.add_argument("--profile", type=int, default=0)
+    ap.add_argument("--remote-under", type=int, default=None,
+                    help="index into --displays to place the remote under (default: span all)")
     a = ap.parse_args()
 
     displays = [parse_display(d) for d in a.displays]
@@ -47,9 +49,20 @@ def main():
     cs = 10000000 / max(bbw, bbh)
     ratio = cs / prof["coord_scale"]  # keep pixel-space feel for sensitivity and edge resistance
 
-    # Remote sits below the local bounding box, scaled to its width.
-    remote_w = int(bbw * cs)
-    screens[0].update(x=0, y=int(bbh * cs), w=remote_w, h=int(remote_w * rh / rw), scale=round(remote_w / rw))
+    # Remote sits below the local bounding box, scaled to the width of whatever
+    # it sits under. The firmware maps the crossing x proportionally across the
+    # remote, so spanning several displays shifts the landing point sideways.
+    if a.remote_under is None:
+        remote_x, remote_w = 0, int(bbw * cs)
+    else:
+        d = displays[a.remote_under]
+        remote_x, remote_w = int((d[0] - bbx) * cs), int(d[2] * cs)
+    remote_scale = round(remote_w / rw)
+    # Keep the remote's pixel speed: sensitivity is in internal units, so it
+    # tracks the remote's own units-per-pixel rather than the local coord_scale.
+    remote_sens = int(round(screens[0]["sensitivity"] * remote_scale / screens[0]["scale"]))
+    screens[0].update(x=remote_x, y=int(bbh * cs), w=remote_w, h=int(remote_w * rh / rw),
+                      scale=remote_scale, sensitivity=remote_sens)
     for scr, d in zip(screens[1:], displays):
         scr.update(
             x=int((d[0] - bbx) * cs), y=int((d[1] - bby) * cs),
