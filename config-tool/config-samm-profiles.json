@@ -8,9 +8,9 @@
             "partial_scroll_timeout": 1000000,
             "interval_override": 1,
             "constraint_mode": 2,
-            "offscreen_sensitivity": 1843,
-            "coord_scale": 1488,
-            "edge_resistance": 297822,
+            "offscreen_sensitivity": 1613,
+            "coord_scale": 1302,
+            "edge_resistance": 260611,
             "jiggle_interval": 60,
             "screens": [
                 {
@@ -29,9 +29,9 @@
                     "y": 0,
                     "w": 5000000,
                     "h": 2812500,
-                    "sensitivity": 1843,
+                    "sensitivity": 1613,
                     "output": 0,
-                    "scale": 1488,
+                    "scale": 1302,
                     "drag_gain": 260,
                     "drag_curve_k": 390
                 },
@@ -40,9 +40,9 @@
                     "y": 0,
                     "w": 5000000,
                     "h": 2812500,
-                    "sensitivity": 1843,
+                    "sensitivity": 1613,
                     "output": 0,
-                    "scale": 1488,
+                    "scale": 1302,
                     "drag_gain": 260,
                     "drag_curve_k": 390
                 }

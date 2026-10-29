@@ -79,7 +79,7 @@ Check macOS's display arrangement against the config before touching `remapper.c
 1. Read the live arrangement (needs WindowServer, run unsandboxed):
    `swift -e 'import CoreGraphics; var n: UInt32 = 0; var ids = [CGDirectDisplayID](repeating: 0, count: 16); CGGetActiveDisplayList(16, &ids, &n); for i in 0..<Int(n) { let b = CGDisplayBounds(ids[i]); print(ids[i], Int(b.origin.x), Int(b.origin.y), Int(b.width), Int(b.height)) }'`
 2. Compare with the local screens in `config-tool/config-samm-profiles.json` (internal units = px * `coord_scale`).
-3. If they differ: `python3 config-tool/relayout.py config-tool/config-samm-profiles.json --displays 3360x1890@0,0 3360x1890@-3360,0 --remote-res 2056x1329 --remote-under 0` with the live values (main display first, one entry per local screen already in the config), then `make apply-config CONFIG=../config-tool/config-samm-profiles.json` and confirm with `make get-config`. `relayout.py` rewrites only geometry, `coord_scale`, sensitivity and `edge_resistance`; mappings and drag gain are kept.
+3. If they differ: `python3 config-tool/relayout.py config-tool/config-samm-profiles.json --displays 3840x2160@0,0 3840x2160@-3840,0 --remote-res 2056x1329 --remote-under 0` with the live values (main display first, one entry per local screen already in the config), then `make apply-config CONFIG=../config-tool/config-samm-profiles.json` and confirm with `make get-config`. `relayout.py` rewrites only geometry, `coord_scale`, sensitivity and `edge_resistance`; mappings and drag gain are kept.
 
 If the layouts already match, the remaining suspect is burst size: `CROSSING_DELTA` and the dy follow in `remapper.cc` are in counts but macOS moves ~0.26-0.8 px per count (pointer acceleration), so a fast flick or a large dead-band snap can fall short. Confirm with the probe tooling in `firmware/tools/drag-tuning/` before changing it.
 
@@ -91,7 +91,7 @@ You must run flash commands outside the sandbox.
 
 ## Firmware Behaviour Notes
 
-- **`generate_config.py` display detection uses Swift** (`CGDisplayBounds` via `swift -e ...`). In headless or sandboxed contexts where `swift` can't run, pass displays manually: `--displays 3360x1890@0,0 3360x1890@-3360,0`.
+- **`generate_config.py` display detection uses Swift** (`CGDisplayBounds` via `swift -e ...`). In headless or sandboxed contexts where `swift` can't run, pass displays manually: `--displays 3840x2160@0,0 3840x2160@-3840,0`.
 - **Forwarder USB identity** is overridden via the `IS_FORWARDER` compile define (in `firmware/CMakeLists.txt`) so the secondary machine sees `Generic` / `USB Keyboard/Mouse` instead of `RP2040` / `Screen Hopper`. Pico A keeps the original strings - config tools key off VID/PID `0xCAFE`/`0xBAF3`, not strings.
 - **Jiggler idleness is tracked per-output**: `maybe_jiggle()` in `remapper.cc` uses `last_input_per_output_us[2]` stamped against `screens[active_screen].output`. Using one machine doesn't reset the other's idle clock, so the inactive side still gets nudged. Don't reintroduce a single global idle timer - it starves the inactive side under normal use.
 - **Forwarder HID descriptor must match Pico A's report IDs**. If Pico A introduces a new report ID without the forwarder also being reflashed, the forwarder relays an unknown report and the secondary machine's HID stack stalls (dead mouse and keyboard until that machine reboots). Reflash both Pico A and the forwarder whenever report IDs change in `our_descriptor.h`.
