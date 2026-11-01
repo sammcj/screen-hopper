@@ -30,6 +30,9 @@ def main():
     ap.add_argument("--profile", type=int, default=0)
     ap.add_argument("--remote-under", type=int, default=None,
                     help="index into --displays to place the remote under (default: span all)")
+    ap.add_argument("--keep-sensitivity", action="store_true",
+                    help="leave local sensitivity untouched: use when only the scaled resolution of the "
+                         "same physical displays changed, so physical pointer speed stays as tuned")
     a = ap.parse_args()
 
     displays = [parse_display(d) for d in a.displays]
@@ -47,7 +50,13 @@ def main():
     bbw = max(d[0] + d[2] for d in displays) - bbx
     bbh = max(d[1] + d[3] for d in displays) - bby
     cs = 10000000 / max(bbw, bbh)
-    ratio = cs / prof["coord_scale"]  # keep pixel-space feel for sensitivity and edge resistance
+    # Keep pixel-space feel for sensitivity and edge resistance. Compare the
+    # stored ints so re-running on an unchanged layout is a no-op.
+    ratio = int(cs) / prof["coord_scale"]
+    # Internal units span the same physical displays whatever the scaled
+    # resolution, so an unchanged sensitivity keeps the physical speed. Scaling
+    # it by ratio keeps px per count instead, which feels faster or slower.
+    sens_ratio = 1.0 if a.keep_sensitivity else ratio
 
     # Remote sits below the local bounding box, scaled to the width of whatever
     # it sits under. The firmware maps the crossing x proportionally across the
@@ -68,10 +77,10 @@ def main():
             x=int((d[0] - bbx) * cs), y=int((d[1] - bby) * cs),
             w=int(d[2] * cs), h=int(d[3] * cs),
             scale=int(round(cs)),
-            sensitivity=int(round(scr["sensitivity"] * ratio)),
+            sensitivity=int(round(scr["sensitivity"] * sens_ratio)),
         )
     prof["coord_scale"] = int(cs)
-    prof["offscreen_sensitivity"] = int(round(prof["offscreen_sensitivity"] * ratio))
+    prof["offscreen_sensitivity"] = int(round(prof["offscreen_sensitivity"] * sens_ratio))
     prof["edge_resistance"] = int(round(prof["edge_resistance"] * ratio))
 
     with open(a.config, "w") as f:

@@ -9,8 +9,8 @@
             "interval_override": 1,
             "constraint_mode": 2,
             "offscreen_sensitivity": 2474,
-            "coord_scale": 1302,
-            "edge_resistance": 260611,
+            "coord_scale": 1488,
+            "edge_resistance": 297860,
             "jiggle_interval": 60,
             "screens": [
                 {
@@ -31,7 +31,7 @@
                     "h": 2812500,
                     "sensitivity": 2474,
                     "output": 0,
-                    "scale": 1302,
+                    "scale": 1488,
                     "drag_gain": 260,
                     "drag_curve_k": 390
                 },
@@ -42,7 +42,7 @@
                     "h": 2812500,
                     "sensitivity": 2474,
                     "output": 0,
-                    "scale": 1302,
+                    "scale": 1488,
                     "drag_gain": 260,
                     "drag_curve_k": 390
                 }
