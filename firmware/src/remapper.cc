@@ -1016,9 +1016,12 @@ void process_mapping(bool auto_repeat) {
         // relative drag motion already carries the cursor across, so the burst
         // is only needed here on the no-button path.)
         static const int64_t CROSSING_DELTA = 100;
-        static const int64_t CROSSING_STEP_MARGIN = 3;  // counts per px: macOS can move as little as ~0.3 px per count
+        // Burst and hold are kept small because the pointer visibly sits past the
+        // seam until absolute resumes: 3 counts per px with a 16 ms hold read as
+        // a distracting jump on every crossing.
+        static const int64_t CROSSING_STEP_MARGIN = 1;  // counts per px of crossing step
         static const int64_t CROSSING_BURST_CAP = 1000;
-        static const uint64_t CROSSING_ABS_HOLD_US = 16000;  // two 125 Hz mouse samples
+        static const uint64_t CROSSING_ABS_HOLD_US = 4000;
         if (active_screen != -1 && prev_active_screen != -1 &&
             active_screen != prev_active_screen &&
             screens.count(active_screen) && screens.count(prev_active_screen) &&
