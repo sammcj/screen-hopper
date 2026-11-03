@@ -549,6 +549,24 @@ void queue_zero_report(uint8_t report_id, uint8_t screen_idx) {
     or_items++;
 }
 
+// Queue an absolute pointer position ahead of whatever is queued next. Local
+// coordinates are in the report's 0..32767 range.
+static void queue_absolute_position(uint8_t screen_idx, int64_t local_x, int64_t local_y) {
+    if (or_items >= OR_BUFSIZE) return;
+    uint8_t* report = outgoing_reports[or_tail] + 2;
+    int len = report_sizes[REPORT_ID_MOUSE];
+    memset(report, 0, len);
+    usage_def_t& x = our_usages_flat[MOUSE_X_USAGE];
+    usage_def_t& y = our_usages_flat[MOUSE_Y_USAGE];
+    put_bits(report, len, x.bitpos, x.size, (uint32_t) local_x);
+    put_bits(report, len, y.bitpos, y.size, (uint32_t) local_y);
+    memcpy(prev_reports[REPORT_ID_MOUSE], report, len);
+    outgoing_reports[or_tail][0] = screen_idx;
+    outgoing_reports[or_tail][1] = REPORT_ID_MOUSE;
+    or_tail = (or_tail + 1) % OR_BUFSIZE;
+    or_items++;
+}
+
 // On a drag release, discard any drag motion that was queued but not yet sent
 // to the host. process_mapping advances the internal cursor the moment it
 // queues a relative report, but the host only moves when the report is actually
@@ -912,6 +930,7 @@ void process_mapping(bool auto_repeat) {
 
     static int64_t edge_push = 0;
     static uint64_t crossing_abs_hold_until_us = 0;
+    static int8_t last_screen_on_output[2] = { -1, -1 };
 
     if (!dragging) {
         // No button held: absolute positioning. The cursor crosses freely
@@ -1004,8 +1023,7 @@ void process_mapping(bool auto_repeat) {
             edge_push = 0;
         }
 
-        int64_t pre_cross_x = cursor_x;  // host position before the crossing (cursor ~ host while on a display)
-        int64_t pre_cross_y = cursor_y;
+        int64_t pre_cross_y = cursor_y;  // host y before the crossing (cursor ~ host while on a display)
         cursor_x = land_x;
         cursor_y = land_y;
         active_screen = land_screen;
@@ -1015,50 +1033,54 @@ void process_mapping(bool auto_repeat) {
         // positioning takes over on the new display. (During a drag the real
         // relative drag motion already carries the cursor across, so the burst
         // is only needed here on the no-button path.)
-        static const int64_t CROSSING_DELTA = 100;
-        // Burst and hold are kept small because the pointer visibly sits past the
-        // seam until absolute resumes: 3 counts per px with a 16 ms hold read as
-        // a distracting jump on every crossing.
-        static const int64_t CROSSING_STEP_MARGIN = 1;  // counts per px of crossing step
-        static const int64_t CROSSING_BURST_CAP = 1000;
+        //
+        // Compare against the last screen used on this output, not last frame's
+        // screen: leaving one local screen for the remote and coming back to
+        // another has no direct hop, but the host still has to change display.
+        static const int16_t CROSSING_DELTA = 100;
+        static const int64_t CROSSING_DY_CAP = 1000;  // bound the vertical follow burst
+        // The pointer visibly sits past the seam until absolute resumes, so this
+        // stays short: 16 ms read as a distracting jump on every crossing.
         static const uint64_t CROSSING_ABS_HOLD_US = 4000;
-        if (active_screen != -1 && prev_active_screen != -1 &&
-            active_screen != prev_active_screen &&
-            screens.count(active_screen) && screens.count(prev_active_screen) &&
-            screens[active_screen].output == screens[prev_active_screen].output) {
+        int8_t from_screen = (active_screen != -1 && screens.count(active_screen))
+                                 ? last_screen_on_output[screens[active_screen].output & 1]
+                                 : -1;
+        if (from_screen != -1 && from_screen != active_screen && screens.count(from_screen) &&
+            screens[active_screen].output == screens[from_screen].output) {
 
             // Horizontal: a deliberate nudge toward the target's side to cross the
-            // macOS seam (the cursor sits on the seam, so its own x delta is ~0 and
-            // can't carry it). Vertical: FOLLOW the actual jump the cursor made
-            // (land_y - pre_cross_y). The old centre-to-centre rel_dy pushed a fixed
-            // direction no matter where on the edge you crossed, so crossing low
-            // into a vertically-offset display shoved the pointer off the target's
-            // far edge and it wrapped. Following the real displacement lands the
-            // pointer in the target's actual span; the absolute report then
-            // fine-positions. Any accel overshoot goes deeper into the target (we
-            // aim at the nearest edge), so it stays on the right display.
-            int64_t upp = screens[active_screen].scale > 0 ? screens[active_screen].scale : coord_scale;
-
-            // A fast flick crosses in one sample, so the host last heard of a
-            // position up to that whole step short of the seam. Size the burst
-            // to clear it: a burst that falls short leaves the host on the old
-            // display while the firmware has moved on, and nothing can correct
-            // that until the firmware crosses back. Overshoot is harmless because
-            // the absolute report pulls the pointer back.
-            int64_t step_px = (upp > 0) ? (land_x - pre_cross_x) / upp : 0;
-            if (step_px < 0) step_px = -step_px;
-            int64_t burst = CROSSING_DELTA + step_px * CROSSING_STEP_MARGIN;
-            if (burst > CROSSING_BURST_CAP) burst = CROSSING_BURST_CAP;
-
+            // macOS seam. Vertical: FOLLOW the actual jump the cursor made. The old
+            // centre-to-centre rel_dy pushed a fixed direction no matter where on
+            // the edge you crossed, so crossing low into a vertically-offset
+            // display shoved the pointer off the target's far edge and it wrapped.
+            // Following the real displacement lands the pointer in the target's
+            // actual span; the absolute report then fine-positions. Any accel
+            // overshoot goes deeper into the target (we aim at the nearest edge),
+            // so it stays on the right display.
             int16_t rel_dx = 0;
-            int64_t prev_cx = screens[prev_active_screen].x + screens[prev_active_screen].w / 2;
+            int64_t prev_cx = screens[from_screen].x + screens[from_screen].w / 2;
             int64_t new_cx = screens[active_screen].x + screens[active_screen].w / 2;
-            if (new_cx > prev_cx) rel_dx = (int16_t) burst;
-            else if (new_cx < prev_cx) rel_dx = (int16_t) -burst;
+            if (new_cx > prev_cx) rel_dx = CROSSING_DELTA;
+            else if (new_cx < prev_cx) rel_dx = -CROSSING_DELTA;
 
-            int64_t dy_follow = (upp > 0) ? (land_y - pre_cross_y) / upp : 0;
-            if (dy_follow > CROSSING_BURST_CAP) dy_follow = CROSSING_BURST_CAP;
-            else if (dy_follow < -CROSSING_BURST_CAP) dy_follow = -CROSSING_BURST_CAP;
+            // Put the host exactly on the seam first. It can be far short of it: a
+            // fast flick crosses in one sample, and after a trip via the remote it
+            // is wherever it was left. A burst that falls short leaves the host on
+            // the old display while the firmware has moved on, and nothing corrects
+            // that until the firmware crosses back.
+            int64_t burst_from_y = pre_cross_y;
+            if (rel_dx != 0) {
+                int64_t from_min_y = screens[from_screen].y;
+                int64_t from_max_y = from_min_y + screens[from_screen].h - 1;
+                burst_from_y = land_y < from_min_y ? from_min_y : (land_y > from_max_y ? from_max_y : land_y);
+                queue_absolute_position(from_screen, rel_dx > 0 ? 32767 : 0,
+                                        (burst_from_y - from_min_y) * 32768 / screens[from_screen].h);
+            }
+
+            int64_t upp = screens[active_screen].scale > 0 ? screens[active_screen].scale : coord_scale;
+            int64_t dy_follow = (upp > 0) ? (land_y - burst_from_y) / upp : 0;
+            if (dy_follow > CROSSING_DY_CAP) dy_follow = CROSSING_DY_CAP;
+            else if (dy_follow < -CROSSING_DY_CAP) dy_follow = -CROSSING_DY_CAP;
             int16_t rel_dy = (int16_t) dy_follow;
 
             queue_relative_movement(rel_dx, rel_dy, 0, 0, active_screen);
@@ -1242,6 +1264,10 @@ void process_mapping(bool auto_repeat) {
     }
 
     prev_frame_buttons = held_buttons;
+
+    if (active_screen != -1 && screens.count(active_screen)) {
+        last_screen_on_output[screens[active_screen].output & 1] = active_screen;
+    }
 
     // Hold off the absolute reposition after a drag until the cursor actually
     // moves again (see defer_abs_after_drag above). A real movement this frame
