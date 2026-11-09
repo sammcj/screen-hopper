@@ -913,6 +913,10 @@ void process_mapping(bool auto_repeat) {
     static int64_t edge_push = 0;
     static uint64_t crossing_abs_hold_until_us = 0;
     static int8_t last_screen_on_output[2] = { -1, -1 };
+    // Where the host pointer was left on each output: abs reports stop reaching
+    // an output while the other one is active.
+    static int64_t last_x_on_output[2] = { 0, 0 };
+    static int64_t last_y_on_output[2] = { 0, 0 };
 
     if (!dragging) {
         // No button held: absolute positioning. The cursor crosses freely
@@ -1021,8 +1025,8 @@ void process_mapping(bool auto_repeat) {
         // screen: leaving one local screen for the remote and coming back to
         // another has no direct hop, but the host still has to change display.
         static const int64_t CROSSING_DELTA = 100;
-        static const int64_t CROSSING_PARKED_PX = 300;
         static const int64_t CROSSING_BURST_CAP = 1000;
+        static const int64_t CROSSING_PARKED_CAP = 30000;  // relative report X is int16
         // The pointer visibly sits past the seam until absolute resumes, so this
         // stays short: 16 ms read as a distracting jump on every crossing.
         static const uint64_t CROSSING_ABS_HOLD_US = 4000;
@@ -1047,15 +1051,26 @@ void process_mapping(bool auto_repeat) {
             // position up to that whole step short of the seam. A burst that falls
             // short leaves the host on the old display while the firmware has moved
             // on, and nothing corrects that until the firmware crosses back. After
-            // a trip via the remote the step says nothing about where the host was
-            // left, so use a fixed distance. Do not pre-position the host on the
-            // seam with an absolute report: macOS then ignored the burst and every
-            // left-to-right crossing failed.
-            int64_t step_px = (upp > 0) ? (land_x - pre_cross_x) / upp : 0;
+            // a trip via the remote the host is still where it was left on the
+            // from screen, possibly the far side of it (captured: parked 3358 px
+            // from the seam, a 400-count burst fell short and wrapped). Size that
+            // burst from the parked position and double it, since macOS moves
+            // well under 1 px per count. Overshoot only pins the pointer at the
+            // target's far edge until the absolute report lands. Do not
+            // pre-position the host on the seam with an absolute report: macOS
+            // then ignored the burst and every left-to-right crossing failed.
+            bool via_other_output = from_screen != prev_active_screen;
+            int64_t host_x = via_other_output ? last_x_on_output[screens[active_screen].output & 1] : pre_cross_x;
+            int64_t host_y = via_other_output ? last_y_on_output[screens[active_screen].output & 1] : pre_cross_y;
+            int64_t step_px = (upp > 0) ? (land_x - host_x) / upp : 0;
             if (step_px < 0) step_px = -step_px;
-            if (from_screen != prev_active_screen) step_px = CROSSING_PARKED_PX;
             int64_t burst = CROSSING_DELTA + step_px;
-            if (burst > CROSSING_BURST_CAP) burst = CROSSING_BURST_CAP;
+            if (via_other_output) {
+                burst = CROSSING_DELTA + 2 * step_px;
+                if (burst > CROSSING_PARKED_CAP) burst = CROSSING_PARKED_CAP;
+            } else if (burst > CROSSING_BURST_CAP) {
+                burst = CROSSING_BURST_CAP;
+            }
 
             int16_t rel_dx = 0;
             int64_t prev_cx = screens[from_screen].x + screens[from_screen].w / 2;
@@ -1063,7 +1078,7 @@ void process_mapping(bool auto_repeat) {
             if (new_cx > prev_cx) rel_dx = (int16_t) burst;
             else if (new_cx < prev_cx) rel_dx = (int16_t) -burst;
 
-            int64_t dy_follow = (upp > 0) ? (land_y - pre_cross_y) / upp : 0;
+            int64_t dy_follow = (upp > 0) ? (land_y - host_y) / upp : 0;
             if (dy_follow > CROSSING_BURST_CAP) dy_follow = CROSSING_BURST_CAP;
             else if (dy_follow < -CROSSING_BURST_CAP) dy_follow = -CROSSING_BURST_CAP;
             int16_t rel_dy = (int16_t) dy_follow;
@@ -1252,6 +1267,8 @@ void process_mapping(bool auto_repeat) {
 
     if (active_screen != -1 && screens.count(active_screen)) {
         last_screen_on_output[screens[active_screen].output & 1] = active_screen;
+        last_x_on_output[screens[active_screen].output & 1] = cursor_x;
+        last_y_on_output[screens[active_screen].output & 1] = cursor_y;
     }
 
     // Hold off the absolute reposition after a drag until the cursor actually
