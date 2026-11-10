@@ -1053,28 +1053,35 @@ void process_mapping(bool auto_repeat) {
             // on, and nothing corrects that until the firmware crosses back. After
             // a trip via the remote the host is still where it was left on the
             // from screen, possibly the far side of it (captured: parked 3358 px
-            // from the seam, a 400-count burst fell short and wrapped). Size that
-            // burst from the parked position and double it, since macOS moves
-            // well under 1 px per count. Overshoot only pins the pointer at the
-            // target's far edge until the absolute report lands. Do not
+            // from the seam, a 400-count burst fell short and wrapped). The burst
+            // must also not overshoot: macOS tests where the move ends, and an
+            // end point beyond the target's far edge is on no display, so the
+            // pointer stays pinned at the seam on the old display (captured:
+            // parked on the seam, 6136 counts, x did not move). So aim a third
+            // of the way into the target from the parked position, at the
+            // ~0.75 px per count macOS gives large single moves. Do not
             // pre-position the host on the seam with an absolute report: macOS
             // then ignored the burst and every left-to-right crossing failed.
             bool via_other_output = from_screen != prev_active_screen;
             int64_t host_x = via_other_output ? last_x_on_output[screens[active_screen].output & 1] : pre_cross_x;
             int64_t host_y = via_other_output ? last_y_on_output[screens[active_screen].output & 1] : pre_cross_y;
+            int64_t prev_cx = screens[from_screen].x + screens[from_screen].w / 2;
+            int64_t new_cx = screens[active_screen].x + screens[active_screen].w / 2;
             int64_t step_px = (upp > 0) ? (land_x - host_x) / upp : 0;
             if (step_px < 0) step_px = -step_px;
             int64_t burst = CROSSING_DELTA + step_px;
-            if (via_other_output) {
-                burst = CROSSING_DELTA + 2 * step_px;
+            if (burst > CROSSING_BURST_CAP) burst = CROSSING_BURST_CAP;
+            if (via_other_output && upp > 0) {
+                int64_t seam = (new_cx > prev_cx) ? screens[active_screen].x
+                                                  : screens[active_screen].x + screens[active_screen].w;
+                int64_t to_seam_px = (new_cx > prev_cx ? seam - host_x : host_x - seam) / upp;
+                if (to_seam_px < 0) to_seam_px = 0;
+                int64_t target_px = to_seam_px + screens[active_screen].w / upp / 3;
+                burst = target_px * 4 / 3;
                 if (burst > CROSSING_PARKED_CAP) burst = CROSSING_PARKED_CAP;
-            } else if (burst > CROSSING_BURST_CAP) {
-                burst = CROSSING_BURST_CAP;
             }
 
             int16_t rel_dx = 0;
-            int64_t prev_cx = screens[from_screen].x + screens[from_screen].w / 2;
-            int64_t new_cx = screens[active_screen].x + screens[active_screen].w / 2;
             if (new_cx > prev_cx) rel_dx = (int16_t) burst;
             else if (new_cx < prev_cx) rel_dx = (int16_t) -burst;
 
