@@ -19,8 +19,14 @@
 - Scroll wheel needs separate report or Mouse collection (not a digitizer concept)
 - Physical size/unit fields may be required by some hosts; QMK includes them
 
+## BetterDisplay / LG 5K display identity (2026-11-16)
+- [BetterDisplay docs and LG 5K identity](betterdisplay-docs-and-lg5k-identity.md) - docs moved to betterdisplay.pro/guide (fetch via ctx_index); LG 5K product ID varies by port (0x5cf7/8/9)
+
 ## Screen Hopper Project Context
 - Triple Pico KVM: A (USB device), B (USB host), Forwarder (second computer)
 - Firmware based on jfedor2/screen-hopper, uses TinyUSB with jfedor2's fork
 - Current descriptor: Usage Page 0x01 (Mouse), absolute X/Y 0-32767
 - User has 3 monitors in L-shape layout, needs cursor across all of them
+
+## macOS Pointer Acceleration Model (2026-11-16)
+- [macos-pointer-acceleration-model.md](macos-pointer-acceleration-model.md) - per-report Euclidean velocity, parametric HIDAccelCurves formula, hidutil per-device disable, button routing in rel+abs interfaces
