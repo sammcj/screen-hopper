@@ -15,6 +15,7 @@
 #include "crc.h"
 #include "descriptor_parser.h"
 #include "globals.h"
+#include "host_accel.h"
 #include "our_descriptor.h"
 #include "remapper.h"
 #include "serial.h"
@@ -190,6 +191,18 @@ uint64_t last_input_per_output_us[2] = { 0, 0 };
 // the user moves again, so the post-drag correction doesn't snap while the hand
 // is stationary. Cleared on movement and on any deliberate warp (F8/caps switch).
 bool defer_abs_after_drag = false;
+
+// Probe test hooks: firmware/tools/drag-tuning/bench.py pokes these over SWD to
+// drive the pointer through the real input path without a hand on the mouse.
+// All inert at zero. dbg_move and dbg_rel pack (int16 dx | int16 dy << 16) so a
+// single 32-bit write is atomic; the firmware zeroes them once consumed.
+volatile uint32_t dbg_move = 0;    // mouse counts, as if Pico B had reported them
+volatile uint32_t dbg_rel = 0;     // one relative report straight to the active screen
+volatile uint8_t dbg_buttons = 0;  // ORed into the held mouse buttons
+// 0: drag via relative reports (dead-reckoned). 1: drag via absolute reports,
+// buttons only in the relative report. 2: as 1, absolute report carries the
+// held buttons too. Experimental, not persisted.
+volatile uint8_t drag_mode = 0;
 
 int64_t bounds_min_x;
 int64_t bounds_max_x;
@@ -474,7 +487,14 @@ static int8_t snap_target_screen_y(int64_t target_y, int64_t from_x, int8_t from
     return best;
 }
 
-void queue_relative_movement(int16_t dx, int16_t dy, int16_t wheel, int16_t pan, uint8_t screen_idx) {
+// Returns false if the ring was full and the report was dropped. When the
+// motion was summed into a report still waiting to be sent, merged_dx/dy get
+// that report's motion from before the merge (0 otherwise): macOS scales the
+// merged report as a whole, which is not the sum of scaling its parts.
+bool queue_relative_movement(int16_t dx, int16_t dy, int16_t wheel, int16_t pan, uint8_t screen_idx,
+                             int16_t* merged_dx = nullptr, int16_t* merged_dy = nullptr) {
+    if (merged_dx) *merged_dx = 0;
+    if (merged_dy) *merged_dy = 0;
     // Byte 0 of the relative report is the 8-button bitmap (same usages as the
     // absolute report, same device). Carry the buttons built this frame so a
     // relative drag/crossing burst holds the button instead of looking like a
@@ -499,6 +519,8 @@ void queue_relative_movement(int16_t dx, int16_t dy, int16_t wheel, int16_t pan,
             int32_t py = (int16_t) (outgoing_reports[prev][5] | (outgoing_reports[prev][6] << 8));
             int32_t pw = (int16_t) (outgoing_reports[prev][7] | (outgoing_reports[prev][8] << 8));
             int32_t pp = (int16_t) (outgoing_reports[prev][9] | (outgoing_reports[prev][10] << 8));
+            if (merged_dx) *merged_dx = (int16_t) px;
+            if (merged_dy) *merged_dy = (int16_t) py;
             int32_t nx = px + dx;
             int32_t ny = py + dy;
             int32_t nw = pw + wheel;
@@ -515,11 +537,11 @@ void queue_relative_movement(int16_t dx, int16_t dy, int16_t wheel, int16_t pan,
             outgoing_reports[prev][8] = (nw >> 8) & 0xFF;
             outgoing_reports[prev][9] = np & 0xFF;
             outgoing_reports[prev][10] = (np >> 8) & 0xFF;
-            return;
+            return true;
         }
     }
 
-    if (or_items >= OR_BUFSIZE) return;
+    if (or_items >= OR_BUFSIZE) return false;
     outgoing_reports[or_tail][0] = screen_idx;
     outgoing_reports[or_tail][1] = REPORT_ID_RELATIVE;
     memset(outgoing_reports[or_tail] + 2, 0, report_sizes[REPORT_ID_RELATIVE]);
@@ -534,6 +556,19 @@ void queue_relative_movement(int16_t dx, int16_t dy, int16_t wheel, int16_t pan,
     outgoing_reports[or_tail][10] = (pan >> 8) & 0xFF;
     or_tail = (or_tail + 1) % OR_BUFSIZE;
     or_items++;
+    return true;
+}
+
+// The local Mac's pointer acceleration. 1.0 is its tracking speed
+// (`defaults read -g com.apple.mouse.scaling`).
+static const host_accel_t host_accel = host_accel_create(1.0);
+
+// Queue one relative report that moves the host pointer by (px_x, px_y) points.
+static void queue_host_move(double px_x, double px_y, uint8_t screen_idx) {
+    double dist = sqrt(px_x * px_x + px_y * px_y);
+    if (dist < 1) return;
+    double counts = host_accel_counts(host_accel, dist);
+    queue_relative_movement((int16_t) lround(px_x * counts / dist), (int16_t) lround(px_y * counts / dist), 0, 0, screen_idx);
 }
 
 // Queue a zeroed report (no buttons, keys or motion) of report_id tagged to
@@ -578,6 +613,18 @@ static inline int64_t drag_advance_gain(int64_t rx, int64_t ry, int64_t base_mil
     return gain;
 }
 
+// Host points per count for one relative report of (rx, ry) to screen_idx.
+// drag_mode 3 uses the macOS curve itself; otherwise the configured affine fit.
+static double drag_report_gain(int64_t rx, int64_t ry, uint8_t screen_idx) {
+    if (drag_mode == 3) {
+        return host_accel_gain(host_accel, (int32_t) rx, (int32_t) ry);
+    }
+    int64_t base_milli = screens.count(screen_idx) ? (int64_t) screens[screen_idx].drag_gain : 0;
+    int64_t slope_e4 = screens.count(screen_idx) ? (int64_t) screens[screen_idx].drag_curve_k : 0;
+    if (base_milli == 0 && slope_e4 == 0) base_milli = 1000;  // flat 1.0 default (v8 behaviour)
+    return drag_advance_gain(rx, ry, base_milli, slope_e4) / 1000.0;
+}
+
 void drop_unsent_relative_motion() {
     for (uint8_t k = 0; k < or_items; k++) {
         uint8_t i = (or_head + k) % OR_BUFSIZE;
@@ -595,12 +642,9 @@ void drop_unsent_relative_motion() {
                             : coord_scale;
         // Mirror the gain applied when the cursor was advanced for this report
         // (see the drag flush) so dropping unsent motion exactly undoes it.
-        int64_t base_milli = screens.count(screen_idx) ? (int64_t) screens[screen_idx].drag_gain : 0;
-        int64_t slope_e4 = screens.count(screen_idx) ? (int64_t) screens[screen_idx].drag_curve_k : 0;
-        if (base_milli == 0 && slope_e4 == 0) base_milli = 1000;  // flat 1.0 default
-        int64_t gain = drag_advance_gain(rx, ry, base_milli, slope_e4);
-        cursor_x -= (int64_t) rx * scale * gain / 1000;
-        cursor_y -= (int64_t) ry * scale * gain / 1000;
+        double gain = drag_report_gain(rx, ry, screen_idx);
+        cursor_x -= llround(rx * gain * scale);
+        cursor_y -= llround(ry * gain * scale);
         outgoing_reports[i][3] = 0;
         outgoing_reports[i][4] = 0;
         outgoing_reports[i][5] = 0;
@@ -850,6 +894,19 @@ void process_mapping(bool auto_repeat) {
         input_state[usage] = 0;
     }
 
+    if (uint32_t m = dbg_move) {
+        dbg_move = 0;
+        accumulated[MOUSE_X_USAGE] += (int32_t) (int16_t) (m & 0xFFFF) * 1000;
+        accumulated[MOUSE_Y_USAGE] += (int32_t) (int16_t) (m >> 16) * 1000;
+    }
+    reports[REPORT_ID_MOUSE][0] |= dbg_buttons;
+    if (uint32_t r = dbg_rel) {
+        dbg_rel = 0;
+        if (active_screen != -1) {
+            queue_relative_movement((int16_t) (r & 0xFFFF), (int16_t) (r >> 16), 0, 0, active_screen);
+        }
+    }
+
     // Proper fractional accumulator for cursor movement. Scale this frame's
     // input by sensitivity, emit whole internal units, and carry the sub-unit
     // remainder to the next frame. The previous "accumulated -= dx" mixed raw
@@ -887,6 +944,7 @@ void process_mapping(bool auto_repeat) {
     uint8_t held_buttons = reports[REPORT_ID_MOUSE][0];
     bool buttons_changed = (held_buttons != prev_frame_buttons);
     bool dragging = (held_buttons != 0 || buttons_changed);
+    bool abs_drag = dragging && (drag_mode == 1 || drag_mode == 2);
 
     int8_t prev_active_screen = active_screen;
     bool suppress_abs_mouse = false;
@@ -898,18 +956,6 @@ void process_mapping(bool auto_repeat) {
                              ? (int64_t) screens[active_screen].scale
                              : coord_scale;
 
-    // Host pointer tracking gain (speed-dependent). The host renders a number of
-    // pixels per emitted relative count that rises affinely with drag speed
-    // (macOS pointer acceleration), so the internal cursor is advanced by
-    // base + slope*v per count (see drag_advance_gain). drag_gain holds base*1000,
-    // drag_curve_k holds slope*1e4 (CONFIG_VERSION 11). Both 0 = flat 1.0.
-    // Per-output: the active screen's `output` selects which host these apply to.
-    int64_t drag_base = (active_screen >= 0 && screens.count(active_screen))
-                            ? (int64_t) screens[active_screen].drag_gain : 0;
-    int64_t drag_slope = (active_screen >= 0 && screens.count(active_screen))
-                            ? (int64_t) screens[active_screen].drag_curve_k : 0;
-    if (drag_base == 0 && drag_slope == 0) drag_base = 1000;  // flat 1.0 default (v8 behaviour)
-
     static int64_t edge_push = 0;
     static uint64_t crossing_abs_hold_until_us = 0;
     static int8_t last_screen_on_output[2] = { -1, -1 };
@@ -918,7 +964,7 @@ void process_mapping(bool auto_repeat) {
     static int64_t last_x_on_output[2] = { 0, 0 };
     static int64_t last_y_on_output[2] = { 0, 0 };
 
-    if (!dragging) {
+    if (!dragging || abs_drag) {
         // No button held: absolute positioning. The cursor crosses freely
         // between all screens, including onto the remote computer when it
         // reaches the edge the remote sits on. F8/caps lock remains an explicit
@@ -979,6 +1025,8 @@ void process_mapping(bool auto_repeat) {
             }
         }
 
+        int8_t natural_land_screen = land_screen;  // before edge resistance pins it
+
         // Edge resistance: crossing to a screen on the *other* computer (a
         // different output) requires pushing past the edge by edge_resistance
         // internal units. Same-output hops cross instantly. While the push is
@@ -988,9 +1036,10 @@ void process_mapping(bool auto_repeat) {
         bool cross_output = (land_screen != active_screen) && active_screen != -1 && land_screen != -1 &&
                             screens.count(land_screen) && screens.count(active_screen) &&
                             screens[land_screen].output != screens[active_screen].output;
-        if (cross_output && edge_resistance > 0) {
+        if (cross_output && (edge_resistance > 0 || abs_drag)) {
             edge_push += (dx < 0 ? -dx : dx) + (dy < 0 ? -dy : dy);
-            if (edge_push < (int64_t) edge_resistance) {
+            // A held button never switches computers.
+            if (abs_drag || edge_push < (int64_t) edge_resistance) {
                 land_screen = active_screen;
                 int64_t min_x = screens[active_screen].x;
                 int64_t max_x = screens[active_screen].x + screens[active_screen].w - 1;
@@ -1009,96 +1058,126 @@ void process_mapping(bool auto_repeat) {
             edge_push = 0;
         }
 
-        int64_t pre_cross_x = cursor_x;  // host position before the crossing (cursor ~ host while on a display)
-        int64_t pre_cross_y = cursor_y;
+        // Outer edge: nothing lies beyond it on either computer, so the move
+        // was refused. Stop on the edge itself rather than a step short of it.
+        //
+        // This is also where a host/firmware display mismatch shows. The
+        // firmware cannot see the host pointer, and macOS moves it between
+        // displays on its own when displays drop and return (wake, replug) or
+        // when a crossing burst fails. Absolute reports then paint this
+        // screen's position on the other display, and the pointer cannot get
+        // here: the firmware is already at this screen's outer edge. Pushing
+        // on against that edge is what a user does next, so a sustained push
+        // repeats the crossing burst from the display on the far side. With
+        // the host already here the burst ends on no display and macOS
+        // ignores it.
+        static int64_t outer_push = 0;
+        static const int64_t OUTER_PUSH_PX = 200;
+        bool resync_burst = false;
+        int resync_dir = 0;
+        if (natural_land_screen == active_screen && active_screen != -1 && screens.count(active_screen)) {
+            const screen_def_t& a = screens[active_screen];
+            if (new_cursor_y < a.y) land_y = a.y;
+            else if (new_cursor_y > a.y + a.h - 1) land_y = a.y + a.h - 1;
+            if (new_cursor_x < a.x) { land_x = a.x; resync_dir = -1; }
+            else if (new_cursor_x > a.x + a.w - 1) { land_x = a.x + a.w - 1; resync_dir = 1; }
+
+            bool far_side_screen = false;
+            for (uint8_t i = 0; resync_dir != 0 && i < NSCREENS; i++) {
+                if ((int8_t) i == active_screen || screens[i].w == 0 || screens[i].output != a.output) continue;
+                if (resync_dir < 0 ? screens[i].x >= a.x + a.w : screens[i].x + screens[i].w <= a.x) {
+                    far_side_screen = true;
+                    break;
+                }
+            }
+            if (far_side_screen) {
+                outer_push += (dx < 0 ? -dx : dx);
+                int64_t upp = a.scale > 0 ? a.scale : coord_scale;
+                if (outer_push >= OUTER_PUSH_PX * upp) {
+                    outer_push = 0;
+                    resync_burst = true;
+                }
+            } else if (dx != 0) {
+                outer_push = 0;
+            }
+        } else if (dx != 0) {
+            outer_push = 0;
+        }
+
         cursor_x = land_x;
         cursor_y = land_y;
         active_screen = land_screen;
 
-        // Boundary crossing between same-output screens: push the cursor across
-        // the macOS display edge with a relative burst, then absolute
-        // positioning takes over on the new display. (During a drag the real
-        // relative drag motion already carries the cursor across, so the burst
-        // is only needed here on the no-button path.)
+        // Boundary crossing between same-output screens. An absolute report
+        // lands on whichever display the host pointer is already on, so one
+        // relative report first carries the pointer over the macOS seam, then
+        // absolute positioning takes over on the new display. (A relative
+        // drag crosses on its own motion and never gets here.)
         //
-        // Compare against the last screen used on this output, not last frame's
-        // screen: leaving one local screen for the remote and coming back to
-        // another has no direct hop, but the host still has to change display.
-        static const int64_t CROSSING_DELTA = 100;
-        static const int64_t CROSSING_BURST_CAP = 1000;
-        static const int64_t CROSSING_PARKED_CAP = 30000;  // relative report X is int16
-        // The pointer visibly sits past the seam until absolute resumes, so this
-        // stays short: 16 ms read as a distracting jump on every crossing.
+        // The burst is aimed at the landing point itself. macOS's gain for a
+        // relative report depends only on that report's size (host_accel.h),
+        // so the counts for a distance are known. A burst fails in two ways,
+        // and either leaves the host a display away from active_screen until
+        // the firmware crosses back:
+        //  - It falls short of the seam. The host is where the last absolute
+        //    report put it (last_x/y_on_output): a sample behind cursor_x with
+        //    upsampling on, or wherever it was parked before a trip to the
+        //    other computer.
+        //  - It ends on no display. macOS tests the end point of the move in
+        //    both axes and otherwise keeps the pointer on the old display. The
+        //    gain peaks near 3.9 px per count around 115 counts, so a burst
+        //    counted 1:1 overshoots the top or bottom edge whenever the
+        //    crossing has vertical travel near it.
+        // Do not pre-position the host on the seam with an absolute report:
+        // macOS then ignored the burst and every left-to-right crossing failed.
+        //
+        // Compare against the last screen used on this output, not last
+        // frame's screen: leaving one local screen for the remote and coming
+        // back to another has no direct hop, but the host still has to change
+        // display.
+        static const int64_t CROSSING_INSET_PX = 12;
+        // Absolute reports wait until macOS has applied the burst. Longer than
+        // the crossing frame because macOS can be slow while it reconfigures
+        // displays, short because pointer updates stall for its length.
         static const uint64_t CROSSING_ABS_HOLD_US = 4000;
         int8_t from_screen = (active_screen != -1 && screens.count(active_screen))
                                  ? last_screen_on_output[screens[active_screen].output & 1]
                                  : -1;
         if (from_screen != -1 && from_screen != active_screen && screens.count(from_screen) &&
             screens[active_screen].output == screens[from_screen].output) {
-
-            // Horizontal: a deliberate nudge toward the target's side to cross the
-            // macOS seam. Vertical: FOLLOW the actual jump the cursor made. The old
-            // centre-to-centre rel_dy pushed a fixed direction no matter where on
-            // the edge you crossed, so crossing low into a vertically-offset
-            // display shoved the pointer off the target's far edge and it wrapped.
-            // Following the real displacement lands the pointer in the target's
-            // actual span; the absolute report then fine-positions. Any accel
-            // overshoot goes deeper into the target (we aim at the nearest edge),
-            // so it stays on the right display.
-            int64_t upp = screens[active_screen].scale > 0 ? screens[active_screen].scale : coord_scale;
-
-            // A fast flick crosses in one sample, so the host last heard of a
-            // position up to that whole step short of the seam. A burst that falls
-            // short leaves the host on the old display while the firmware has moved
-            // on, and nothing corrects that until the firmware crosses back. After
-            // a trip via the remote the host is still where it was left on the
-            // from screen, possibly the far side of it (captured: parked 3358 px
-            // from the seam, a 400-count burst fell short and wrapped). The burst
-            // must also not overshoot: macOS tests where the move ends, and an
-            // end point beyond the target's far edge is on no display, so the
-            // pointer stays pinned at the seam on the old display (captured:
-            // parked on the seam, 6136 counts, x did not move). So aim a third
-            // of the way into the target from the parked position, at the
-            // ~0.75 px per count macOS gives large single moves. Do not
-            // pre-position the host on the seam with an absolute report: macOS
-            // then ignored the burst and every left-to-right crossing failed.
-            bool via_other_output = from_screen != prev_active_screen;
-            int64_t host_x = via_other_output ? last_x_on_output[screens[active_screen].output & 1] : pre_cross_x;
-            int64_t host_y = via_other_output ? last_y_on_output[screens[active_screen].output & 1] : pre_cross_y;
-            int64_t prev_cx = screens[from_screen].x + screens[from_screen].w / 2;
-            int64_t new_cx = screens[active_screen].x + screens[active_screen].w / 2;
-            int64_t step_px = (upp > 0) ? (land_x - host_x) / upp : 0;
-            if (step_px < 0) step_px = -step_px;
-            int64_t burst = CROSSING_DELTA + step_px;
-            if (burst > CROSSING_BURST_CAP) burst = CROSSING_BURST_CAP;
-            if (via_other_output && upp > 0) {
-                int64_t seam = (new_cx > prev_cx) ? screens[active_screen].x
-                                                  : screens[active_screen].x + screens[active_screen].w;
-                int64_t to_seam_px = (new_cx > prev_cx ? seam - host_x : host_x - seam) / upp;
-                if (to_seam_px < 0) to_seam_px = 0;
-                int64_t target_px = to_seam_px + screens[active_screen].w / upp / 3;
-                burst = target_px * 4 / 3;
-                if (burst > CROSSING_PARKED_CAP) burst = CROSSING_PARKED_CAP;
-            }
-
-            int16_t rel_dx = 0;
-            if (new_cx > prev_cx) rel_dx = (int16_t) burst;
-            else if (new_cx < prev_cx) rel_dx = (int16_t) -burst;
-
-            int64_t dy_follow = (upp > 0) ? (land_y - host_y) / upp : 0;
-            if (dy_follow > CROSSING_BURST_CAP) dy_follow = CROSSING_BURST_CAP;
-            else if (dy_follow < -CROSSING_BURST_CAP) dy_follow = -CROSSING_BURST_CAP;
-            int16_t rel_dy = (int16_t) dy_follow;
-
-            queue_relative_movement(rel_dx, rel_dy, 0, 0, active_screen);
-
-            // Hold the absolute report back after the crossing. The relative
-            // burst above carries the pointer across the macOS display seam; an
-            // absolute report that reaches macOS first warps the pointer to
-            // wherever it maps on the CURRENT display (the cursor "wraps"). The
-            // hold covers more than the crossing frame because macOS can be slow
-            // to apply the burst while it reconfigures displays.
+            const screen_def_t& t = screens[active_screen];
+            int64_t upp = t.scale > 0 ? t.scale : coord_scale;
+            // Stay a few px inside the target so a small error in the host
+            // position still ends on it.
+            int64_t inset = CROSSING_INSET_PX * upp;
+            int64_t end_x = land_x < t.x + inset ? t.x + inset
+                          : (land_x > t.x + t.w - 1 - inset ? t.x + t.w - 1 - inset : land_x);
+            int64_t end_y = land_y < t.y + inset ? t.y + inset
+                          : (land_y > t.y + t.h - 1 - inset ? t.y + t.h - 1 - inset : land_y);
+            queue_host_move((double) (end_x - last_x_on_output[t.output & 1]) / upp,
+                            (double) (end_y - last_y_on_output[t.output & 1]) / upp, active_screen);
             crossing_abs_hold_until_us = time_us_64() + CROSSING_ABS_HOLD_US;
+        }
+
+        if (resync_burst) {
+            // The host mirrors this screen's position on the far display, so it
+            // is as far from that display's edge as the last absolute report
+            // was from this one.
+            const screen_def_t& a = screens[active_screen];
+            int64_t upp = a.scale > 0 ? a.scale : coord_scale;
+            int64_t edge = resync_dir < 0 ? a.x : a.x + a.w - 1;
+            int64_t to_edge = last_x_on_output[a.output & 1] - edge;
+            if (to_edge < 0) to_edge = -to_edge;
+            queue_host_move(resync_dir * ((double) to_edge / upp + CROSSING_INSET_PX), 0, active_screen);
+            crossing_abs_hold_until_us = time_us_64() + CROSSING_ABS_HOLD_US;
+        }
+
+        // Absolute drag: motion rides the absolute report, but macOS only
+        // registers a button transition that arrives with relative motion, so
+        // the edge still goes out as a 1 count nudge (+1 engaging, -1 releasing).
+        if (abs_drag && buttons_changed && active_screen != -1) {
+            int16_t nudge = (__builtin_popcount(held_buttons) >= __builtin_popcount(prev_frame_buttons)) ? 1 : -1;
+            queue_relative_movement(nudge, 0, 0, 0, active_screen);
         }
 
         if (time_us_64() < crossing_abs_hold_until_us) {
@@ -1206,17 +1285,24 @@ void process_mapping(bool auto_repeat) {
             if (buttons_changed && rx == 0 && ry == 0) {
                 rx = (__builtin_popcount(held_buttons) >= __builtin_popcount(prev_frame_buttons)) ? 1 : -1;
             }
+            int16_t was_x = 0;  // unsent motion this flush was merged into
+            int16_t was_y = 0;
+            bool queued = true;
             if (rx != 0 || ry != 0 || flush_wheel != 0 || flush_pan != 0 || buttons_changed) {
-                queue_relative_movement((int16_t) rx, (int16_t) ry, (int16_t) flush_wheel, (int16_t) flush_pan, active_screen);
+                queued = queue_relative_movement((int16_t) rx, (int16_t) ry, (int16_t) flush_wheel, (int16_t) flush_pan,
+                                                 active_screen, &was_x, &was_y);
             }
 
-            // Advance the internal cursor by the motion the host actually
-            // rendered - the emitted relative counts scaled by the host's
-            // speed-dependent gain this flush - so the absolute report sent
-            // after release lands where the host already is, not ahead of it.
-            int64_t flush_gain = drag_advance_gain(rx, ry, drag_base, drag_slope);
-            cursor_x += rx * drag_scale * flush_gain / 1000;
-            cursor_y += ry * drag_scale * flush_gain / 1000;
+            // Advance the internal cursor by the motion the host renders for
+            // the report as it will be sent (see drag_report_gain), so the
+            // absolute report after release lands where the host already is.
+            // A report dropped on a full ring moves nothing.
+            if (queued) {
+                double gain = drag_report_gain(was_x + rx, was_y + ry, active_screen);
+                double was_gain = drag_report_gain(was_x, was_y, active_screen);
+                cursor_x += llround(((was_x + rx) * gain - was_x * was_gain) * drag_scale);
+                cursor_y += llround(((was_y + ry) * gain - was_y * was_gain) * drag_scale);
+            }
 
             // Follow the cursor across same-output screens so a window dragged
             // between local monitors keeps an accurate post-release position;
@@ -1317,6 +1403,10 @@ void process_mapping(bool auto_repeat) {
             }
             abs_smooth_position(now, abs_x, abs_y);
         }
+        // The host pointer is wherever this report puts it, which with
+        // upsampling on trails cursor_x.
+        last_x_on_output[screens[active_screen].output & 1] = abs_x;
+        last_y_on_output[screens[active_screen].output & 1] = abs_y;
         int64_t local_x = (abs_x - screens[active_screen].x) * 32768 / screens[active_screen].w;
         int64_t local_y = (abs_y - screens[active_screen].y) * 32768 / screens[active_screen].h;
         // Clamp to the 16-bit absolute range. Without this, a cursor position
@@ -1398,6 +1488,10 @@ void process_mapping(bool auto_repeat) {
     }
     if (active_screen != -1) {
         output_anchor_screen = active_screen;
+    }
+
+    if (abs_drag && drag_mode == 1) {
+        reports[REPORT_ID_MOUSE][0] = 0;
     }
 
     for (uint i = 0; i < report_ids.size(); i++) {  // XXX what order should we go in? maybe keyboard first so that mappings to ctrl-left click work as expected?

@@ -1,4 +1,4 @@
-.PHONY: all pico1 pico2 clean submodules bake flash apply-config get-config check-versions
+.PHONY: all pico1 pico2 test clean submodules bake flash apply-config get-config check-versions
 
 all: pico2
 
@@ -38,6 +38,12 @@ pico1: submodules check-versions bake
 pico2: submodules check-versions bake
 	@mkdir -p build-pico2
 	@cd build-pico2 && cmake -DPICO_BOARD=pico2 .. && $(MAKE)
+
+# Native unit tests: no Pico SDK, no hardware.
+test:
+	@mkdir -p build-host
+	@$(CXX) -std=c++17 -Wall -Wextra -Isrc tests/host_accel_test.cpp -o build-host/host_accel_test
+	@./build-host/host_accel_test
 
 clean:
 	@rm -rf build-pico1 build-pico2 pico1 pico2
