@@ -43,7 +43,7 @@ for i in 0..<Int(count) {
 
 var window: NSWindow?
 if CommandLine.arguments.contains("--pad"), let screen = NSScreen.screens.first {
-    let size = NSSize(width: min(1600, screen.frame.width - 200), height: min(1000, screen.frame.height - 200))
+    let size = NSSize(width: min(2600, screen.frame.width - 700), height: min(1000, screen.frame.height - 200))
     let origin = NSPoint(x: screen.frame.midX - size.width / 2, y: screen.frame.midY - size.height / 2)
     let w = NSWindow(contentRect: NSRect(origin: origin, size: size), styleMask: .borderless, backing: .buffered, defer: false)
     w.level = .floating

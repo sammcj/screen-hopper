@@ -258,10 +258,27 @@ def run_drag(bench, mode):
         "there and back": [(14, 6)] * 30 + [(-14, -6)] * 30,
         "mixed": [(1, 0)] * 20 + [(25, -10)] * 8 + [(3, 3)] * 30 + [(-40, 0)] * 6 + [(0, 20)] * 10,
     }
+
+    def run(dx, dy, travel):
+        """Samples of (dx, dy) that carry the host about travel px."""
+        # The firmware emits drag reports in px-sized counts, so (dx, dy) is the report.
+        per_sample = model_px(math.floor(math.hypot(dx, dy)))
+        return [(dx, dy)] * max(1, round(min(travel, pw - 240) / per_sample))
+
+    # Wide strokes start at the pad's left edge and cross about half the display.
+    width = next(d[2] for d in bench.host.displays if d[0] <= px < d[0] + d[2])
+    half = 0.5 * width
+    strokes.update({
+        "wide fast": run(35, 0, half),
+        "wide very fast": run(70, 0, half),
+        "wide flick": [(20, 0), (60, 2), (110, 4), (150, 5), (110, 4), (60, 2), (20, 0)],
+        "wide diagonal": run(40, 8, half),
+        "wide there and back": run(45, 0, half) + run(-45, 0, half),
+    })
     print(f"drag_mode {mode}")
-    print("stroke           fw_travel  host_travel  error_px(x,y)  held  drag_events")
+    print("stroke                fw_travel  host_travel  width  px/s   error_px(x,y)  held  drag_events")
     for name, samples in strokes.items():
-        bench.goto(centre[0] - 250, centre[1])
+        bench.goto(px + 80 if name.startswith("wide") else centre[0] - 250, centre[1])
         fx0, fy0, _ = bench.fw()
         h0 = bench.host.state()
         # A press that lands anywhere but the pad would drag whatever is under it.
@@ -273,9 +290,12 @@ def run_drag(bench, mode):
             bench.probe.write8("dbg_buttons", 0)
             sys.exit("the pad did not receive the press: released and stopped")
         held = True
+        started, peak = time.time(), 0.0
         for dx, dy in samples:
             bench.probe.write_pair("dbg_move", round(dx * k), round(dy * k))
             time.sleep(SAMPLE_S)
+            peak = max(peak, abs(bench.fw()[0] - fx0))
+        elapsed = time.time() - started
         time.sleep(0.05)
         held = held and bench.host.state()["left"]
         bench.probe.write8("dbg_buttons", 0)
@@ -284,7 +304,7 @@ def run_drag(bench, mode):
         h1 = bench.host.state()
         fw_travel = math.hypot(fx1 - fx0, fy1 - fy0)
         host_travel = math.hypot(h1["x"] - h0["x"], h1["y"] - h0["y"])
-        print(f"{name:15s}  {fw_travel:9.1f}  {host_travel:11.1f}  ({h1['x'] - fx1:+6.1f},{h1['y'] - fy1:+6.1f})  {str(held):5s} {h1['drags'] - h0['drags']:6d}")
+        print(f"{name:20s}  {fw_travel:9.1f}  {host_travel:11.1f}  {100 * peak / width:4.0f}%  {peak / elapsed:5.0f}  ({h1['x'] - fx1:+6.1f},{h1['y'] - fy1:+6.1f})  {str(held):5s} {h1['drags'] - h0['drags']:6d}")
         bench.move(1, 0)
         bench.move(-1, 0)
 
