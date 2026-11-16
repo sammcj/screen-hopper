@@ -9,6 +9,7 @@ touch the mouse, and the pointer is yours again when it exits.
     ./bench.py curve            # macOS gain per relative report vs host_accel.h
     ./bench.py sync [seconds]   # random motion across the local displays, counts desyncs
     ./bench.py drag [mode]      # drags on a click-proof pad, prints the post-release error
+                                # mode: 0 default, 1 macOS curve everywhere, 2 affine fit everywhere
 
 Run UNSANDBOXED (debug probe + WindowServer), with the pointer on the main Mac.
 Addresses come from the ELF, so rebuild and reflash together.
@@ -48,7 +49,10 @@ class Probe:
         self.sock.sendall(text.encode() + b"\x1a")
         buf = b""
         while not buf.endswith(b"\x1a"):
-            buf += self.sock.recv(4096)
+            chunk = self.sock.recv(4096)
+            if not chunk:
+                raise ConnectionError("openocd closed the connection")
+            buf += chunk
         return buf[:-1].decode(errors="replace")
 
     def read(self, name, width=8, count=1):
@@ -191,6 +195,28 @@ def run_curve(bench):
         bench.move(1, 0)  # any real motion brings the absolute report back
         bench.move(-1, 0)
         time.sleep(0.05)
+    # Burst-sized reports, from the left edge of the desktop along the row the
+    # displays share. The return report has the same magnitude, so it lands
+    # back on the start.
+    left = min(d[0] for d in bench.host.displays)
+    span = max(d[0] + d[2] for d in bench.host.displays) - left
+    first = min(bench.host.displays, key=lambda d: d[0])
+    bench.goto(left + 30, first[1] + first[3] / 2)
+    for counts in (1000, 2000, 4000, 8000, 12000):
+        if model_px(counts) > span - 60:
+            break
+        moved = []
+        for sign in (1, -1):
+            before = bench.host.state()
+            bench.probe.write_pair("dbg_rel", sign * counts, 0)
+            time.sleep(0.06)
+            moved.append(abs(bench.host.state()["x"] - before["x"]))
+        measured = sum(moved) / len(moved)
+        worst = max(worst, abs(measured - model_px(counts)))
+        print(f"{counts:6d}  {measured:11.2f}  {model_px(counts):8.2f}  {measured - model_px(counts):+8.2f}")
+        bench.move(1, 0)
+        bench.move(-1, 0)
+        time.sleep(0.05)
     print(f"worst error {worst:.2f} px")
 
 
@@ -313,6 +339,11 @@ def main():
     what = sys.argv[1] if len(sys.argv) > 1 else ""
     if what not in ("curve", "sync", "drag"):
         sys.exit(__doc__)
+    # The model in model_px and host_accel.h is for one tracking speed.
+    speed = subprocess.run(["defaults", "read", "-g", "com.apple.mouse.scaling"], capture_output=True, text=True).stdout.strip()
+    if speed != "1":
+        sys.exit(f"com.apple.mouse.scaling is {speed or 'unset'}, the firmware models 1")
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(1))  # so the finally below releases the button
     bench = Bench(pad=(what == "drag"))
     try:
         if what == "curve":

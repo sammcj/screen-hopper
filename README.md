@@ -33,6 +33,19 @@ Bind any source to target usage `0xfff30010` for a runtime on/off toggle - the o
 
 A 125 Hz mouse (MX Master and similar) hands Pico A one position every 8 ms while the local Mac polls at 1 kHz. With no button held, Pico A walks each new sample out linearly over the following 8 ms in 1 ms steps, so the host sees ~1 kHz updates instead of 8 ms hops. This trades one sample interval of pointer latency for a smoother cursor on 60 Hz displays. Local machine only; drags and everything relative are untouched. On by default. Bind a source to `0xfff30011` to toggle it at runtime (3 blinks on, 5 off). Not persisted.
 
+## macOS pointer acceleration model
+
+Pico A positions the pointer with absolute HID reports, but two things have to go out as relative reports: the hop between two displays on the same Mac, and all motion while a button is held (macOS drops clicks and drags sent any other way). macOS applies pointer acceleration to relative reports, and the next absolute report moves the pointer to wherever the firmware believes it is. A wrong belief shows up as a jump when you release a drag, or as the pointer wrapping to the far edge of a display after a crossing.
+
+`firmware/src/host_accel.h` is a port of the curve macOS applies to a mouse (the parametric curve in Apple's open-source IOHIDFamily). The gain depends only on the size of each report, so the firmware can work out exactly where every relative report leaves the pointer. Measured on hardware it matches macOS to 0.01 px per report.
+
+- **Drags on the local Mac** (screens with `output` 0) are dead-reckoned with the curve. The pointer stays where you release it: under 0.5 px of error on drags across half a 5K display at over 20,000 px/s.
+- **Drags on the second machine** (`output` 1) still use the per-screen `drag_gain` and `drag_curve_k` approximation, because Pico A has no way to learn that machine's tracking speed.
+- **Crossing between displays on the same Mac** is one relative report sized to land where the cursor enters the next display.
+- **Recovering a pointer on the wrong display**: macOS sometimes moves the pointer to another display by itself (wake, replug, displays coming up one at a time). The pointer then wraps or sticks at an edge. Keep pushing about 200 px against that outer edge and Pico A repeats the crossing to bring the host pointer back in line.
+
+The model is built for the macOS tracking speed where `defaults read -g com.apple.mouse.scaling` prints `1`. For any other speed, change `host_accel_create(1.0)` in `firmware/src/remapper.cc` to that value and reflash Pico A.
+
 ## Type text from the clipboard
 
 `config-tool/type_text.py` ships a small CLI that turns text on the Pico-A computer into keystrokes on the forwarder machine, useful for passing a URL, a code snippet or a short password across without needing networking or host software on the second computer.
@@ -110,6 +123,18 @@ After building, the UF2 firmware files are copied to `firmware/pico1/` or `firmw
 | `screenhopper_b.uf2` | Triple  | Pico B (USB host)        |
 
 To flash, hold BOOTSEL while plugging in the Pico, then copy the appropriate UF2 file to the drive that appears. Alternatively, `make flash TARGET=<a|b|forwarder|single> [BOARD=pico1|pico2] [CONFIG=path]` wraps the whole thing - it builds (re-baking if `CONFIG=` is given), auto-detects the BOOTSEL volume and uses `picotool load -x` to flash and reboot, or falls back to a Raspberry Pi Debug Probe over SWD when no BOOTSEL device is present.
+
+### Tests
+
+`make test` (in `firmware/`) builds and runs the native unit test for the pointer acceleration model. It needs no Pico SDK and no hardware.
+
+`firmware/tools/drag-tuning/bench.py` tests the real device from a Mac, with nobody touching the mouse. It needs a Raspberry Pi Debug Probe on Pico A's SWD pins, `openocd`, and a build that matches the flashed firmware. It injects mouse input into Pico A over SWD and reads the pointer position back from macOS.
+
+- `./bench.py curve` - sends single relative reports from 1 to 12,000 counts and compares the distance macOS moved with the model.
+- `./bench.py sync [seconds]` - random crossings between the local displays at mixed speeds, exits 1 if the host pointer and the firmware ever disagree.
+- `./bench.py drag [mode]` - press, drag and release at a range of speeds, and prints how far the pointer jumps afterwards. Mode 0 is the firmware default, 1 forces the curve on every output, 2 forces the `drag_gain` approximation.
+
+The bench takes over the pointer while it runs. `drag` presses the left button, so it first covers the main display with a window that swallows the clicks.
 
 ### Applying config changes without reflashing
 
