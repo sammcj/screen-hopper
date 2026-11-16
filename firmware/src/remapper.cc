@@ -199,9 +199,10 @@ bool defer_abs_after_drag = false;
 volatile uint32_t dbg_move = 0;    // mouse counts, as if Pico B had reported them
 volatile uint32_t dbg_rel = 0;     // one relative report straight to the active screen
 volatile uint8_t dbg_buttons = 0;  // ORed into the held mouse buttons
-// 0: drag via relative reports (dead-reckoned). 1: drag via absolute reports,
-// buttons only in the relative report. 2: as 1, absolute report carries the
-// held buttons too. Experimental, not persisted.
+// 0: drag via relative reports, dead-reckoned (see drag_report_gain). 1: drag
+// via absolute reports, buttons only in the relative report. 2: as 1, absolute
+// report carries the held buttons too. 3 and 4: as 0 with the gain model
+// forced. Bench switch, not persisted.
 volatile uint8_t drag_mode = 0;
 
 int64_t bounds_min_x;
@@ -614,9 +615,13 @@ static inline int64_t drag_advance_gain(int64_t rx, int64_t ry, int64_t base_mil
 }
 
 // Host points per count for one relative report of (rx, ry) to screen_idx.
-// drag_mode 3 uses the macOS curve itself; otherwise the configured affine fit.
+// The local Mac (output 0) gets the macOS curve itself, which host_accel models
+// at tracking speed 1.0. The firmware does not know the remote's tracking
+// speed, so the remote keeps the configured affine fit. drag_mode 3 forces the
+// curve everywhere and 4 the affine fit, for A/B runs on the bench.
 static double drag_report_gain(int64_t rx, int64_t ry, uint8_t screen_idx) {
-    if (drag_mode == 3) {
+    bool local = screens.count(screen_idx) && screens[screen_idx].output == 0;
+    if (drag_mode == 3 || (local && drag_mode != 4)) {
         return host_accel_gain(host_accel, (int32_t) rx, (int32_t) ry);
     }
     int64_t base_milli = screens.count(screen_idx) ? (int64_t) screens[screen_idx].drag_gain : 0;
