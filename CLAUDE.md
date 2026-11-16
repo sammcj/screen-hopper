@@ -124,13 +124,13 @@ Persisted sector layout (4 KB): `device_persist_header_t` (16 B) + `profile_slot
 
 ## Probe Test Bench
 
-`firmware/tools/drag-tuning/bench.py` drives the pointer through Pico A's real input path with no hand on the mouse. It pokes `dbg_move`, `dbg_rel`, `dbg_buttons` and `drag_mode` in `remapper.cc` over SWD and reads the result from macOS through `hostprobe.swift`. Run it unsandboxed, from a build that matches the flashed firmware (addresses come from the ELF). It takes over the pointer, so ask the user before every run and wait for their go-ahead.
+`firmware/tools/drag-tuning/bench.py` drives the pointer through Pico A's real input path with no hand on the mouse. It pokes `dbg_move`, `dbg_rel`, `dbg_buttons` and `drag_mode` in `remapper.cc` over SWD and reads the result from macOS through `hostprobe.swift`. Run it unsandboxed, from a build that matches the flashed firmware. Addresses come from the ELF, and a one-line code change moved them all by 0x20. It takes over the pointer, so ask the user before every run and wait for their go-ahead.
 
 - `./bench.py curve` - macOS gain per relative report against `host_accel.h`. Measured 2026-11-16: exact to 0.01 px from 1 to 700 counts.
 - `./bench.py sync [seconds]` - random crossings between the local displays, exits 1 on any host/firmware desync.
 - `./bench.py drag [mode]` - drags on a click-proof pad window and prints the post-release error. It presses the left button, so get explicit approval for this one separately.
 
-macOS's gain for a relative report depends only on that report's magnitude, `floor(sqrt(dx^2 + dy^2))`, with no time smoothing (the device publishes no `HIDPointerReportRate`). `host_accel.h` ports Apple's IOHIDFamily curve and `make test` checks it. `drag_mode` 3 dead-reckons drags with that curve and is experimental. The default is still the affine fit below, and its "time-smoothed velocity" explanation for the residual is wrong.
+macOS's gain for a relative report depends only on that report's magnitude, `floor(sqrt(dx^2 + dy^2))`, with no time smoothing (the device publishes no `HIDPointerReportRate`). `host_accel.h` ports Apple's IOHIDFamily curve and `make test` checks it. `drag_mode` 3 dead-reckons drags with that curve. Measured 2026-11-16 with `bench.py drag`: post-release error under 0.5 px on all six strokes, against -173 to +584 px for the affine default (`drag_mode` 0). It is a RAM flag that resets to 0 on boot, and it assumes tracking speed 1.0 (`com.apple.mouse.scaling`) on every output, so the default is still the affine fit below.
 
 ## Drag-Gain Affine Model (CONFIG_VERSION 11)
 
@@ -140,7 +140,7 @@ Measured at ~990 Hz via the SWD probe (see `probe-live-debug-tooling` memory), m
 
 `drag_advance_gain()` in `remapper.cc` returns `clamp(base + slope*v, 0, DRAG_GAIN_CAP_MILLI)` in milli; `cursor_x` advances by `rx * scale * gain / 1000` per flush. The two `screen_def_t` fields are reused (names unchanged): **`drag_gain` = base * 1000**, **`drag_curve_k` = slope * 1e4**; both 0 = flat 1.0 (the v8 behaviour). `DRAG_GAIN_CAP_MILLI` (1300) is a compile-time ceiling bounding fast-flick extrapolation. `drag_advance_gain()` is shared by the flush advance and the `drop_unsent_relative_motion()` rewind so they stay symmetric. Fields are per-screen but effectively per-output (read from the active screen, whose `output` selects the host); tune live with `make apply-config`, no reflash.
 
-**Settled live values on the local Mac: base 260 / slope 390** (`drag_gain=260`, `drag_curve_k=390`). The residual can't reach zero: macOS accelerates on a time-smoothed velocity, not the instantaneous per-flush `v`, so a per-flush affine leaves a small post-release warp that flips sign with gesture speed - 260/390 centres it (a hair forward or back depending on the drag). Going tighter needs a firmware EWMA-velocity model feeding `drag_advance_gain()`, not a config tweak.
+**Settled live values on the local Mac: base 260 / slope 390** (`drag_gain=260`, `drag_curve_k=390`). A line cannot match the real curve, so a post-release warp remains that flips sign with gesture speed. 260/390 centres it for hand drags. The exact curve (`drag_mode` 3, see Probe Test Bench) removes it.
 
 **Tune base and slope separately.** base sets slow-drag gain; slope sets fast/large-drag gain. Diagnostic: if the forward over-advance grows with drag size, the slope is too high; if slow drags are off but large ones are fine, adjust base. Whole-line cuts (both at once, e.g. 250/400 or 440/170) under-advanced because they dropped base when only slope was wrong.
 
