@@ -7,8 +7,8 @@ import CoreGraphics
 //
 //   swift hostprobe.swift [--pad]
 //
-// --pad opens a floating window in the middle of the main display that swallows
-// clicks, so bench.py can press and drag there without touching other windows.
+// --pad covers the main display with a window that swallows clicks, so bench.py
+// can press and drag there without touching anything else.
 // It also counts the mouse events it receives, which is the evidence that macOS
 // turned the device's reports into a real drag.
 //
@@ -43,10 +43,11 @@ for i in 0..<Int(count) {
 
 var window: NSWindow?
 if CommandLine.arguments.contains("--pad"), let screen = NSScreen.screens.first {
-    let size = NSSize(width: min(2600, screen.frame.width - 700), height: min(1000, screen.frame.height - 200))
-    let origin = NSPoint(x: screen.frame.midX - size.width / 2, y: screen.frame.midY - size.height / 2)
+    // The whole display, above the menu bar and Dock, so no press can reach anything else on it.
+    let size = screen.frame.size
+    let origin = screen.frame.origin
     let w = NSWindow(contentRect: NSRect(origin: origin, size: size), styleMask: .borderless, backing: .buffered, defer: false)
-    w.level = .floating
+    w.level = .popUpMenu
     w.contentView = Pad()
     w.orderFrontRegardless()
     window = w

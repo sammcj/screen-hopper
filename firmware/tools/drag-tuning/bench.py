@@ -265,7 +265,7 @@ def run_drag(bench, mode):
         per_sample = model_px(math.floor(math.hypot(dx, dy)))
         return [(dx, dy)] * max(1, round(min(travel, pw - 240) / per_sample))
 
-    # Wide strokes start at the pad's left edge and cross about half the display.
+    # Wide strokes cross the middle half of the display.
     width = next(d[2] for d in bench.host.displays if d[0] <= px < d[0] + d[2])
     half = 0.5 * width
     strokes.update({
@@ -278,7 +278,7 @@ def run_drag(bench, mode):
     print(f"drag_mode {mode}")
     print("stroke                fw_travel  host_travel  width  px/s   error_px(x,y)  held  drag_events")
     for name, samples in strokes.items():
-        bench.goto(px + 80 if name.startswith("wide") else centre[0] - 250, centre[1])
+        bench.goto(centre[0] - (half / 2 if name.startswith("wide") else 250), centre[1])
         fx0, fy0, _ = bench.fw()
         h0 = bench.host.state()
         # A press that lands anywhere but the pad would drag whatever is under it.
