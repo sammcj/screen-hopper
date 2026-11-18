@@ -960,6 +960,7 @@ void process_mapping(bool auto_repeat) {
 
     int8_t prev_active_screen = active_screen;
     bool suppress_abs_mouse = false;
+    bool button_edge_unsent = false;
 
     // Drag speed is per-screen: the remote display is scaled differently from
     // the local ones, so relative motion must use the active screen's own
@@ -1313,6 +1314,9 @@ void process_mapping(bool auto_repeat) {
             // the report as it will be sent (see drag_report_gain), so the
             // absolute report after release lands where the host already is.
             // A report dropped on a full ring moves nothing.
+            if (!queued && buttons_changed) {
+                button_edge_unsent = true;
+            }
             if (queued) {
                 double gain = drag_report_gain(was_x + rx, was_y + ry, active_screen);
                 double was_gain = drag_report_gain(was_x, was_y, active_screen);
@@ -1372,7 +1376,12 @@ void process_mapping(bool auto_repeat) {
         }
     }
 
-    prev_frame_buttons = held_buttons;
+    // A press or release that found the ring full is seen as a change again
+    // next frame and retried. Losing a release leaves the host dragging
+    // whatever was clicked until the next click.
+    if (!button_edge_unsent) {
+        prev_frame_buttons = held_buttons;
+    }
 
     if (active_screen != -1 && screens.count(active_screen)) {
         last_screen_on_output[screens[active_screen].output & 1] = active_screen;
